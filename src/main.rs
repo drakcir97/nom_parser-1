@@ -205,7 +205,6 @@ fn variable_expression_parser(input: &str) -> IResult<&str, &str>{
     )(input)?;
 
     //let x = put_in_box(pibval);
-
     //let box_4_varname = Box::new(varname)
     //let param = parameters(box_4_varname,vartype,x)
     //Box::new(param)
@@ -372,3 +371,16 @@ fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_ca
     let list = function_arguments_call::arg_call_list(Box::new(function_arguments_call::bx(x)), func_var(input,reststring));
     return Box::new(list)
 } 
+
+fn function_parser(input: %str) -> IResult<&str,&str>{
+
+    tag("fn")(input);
+}
+
+
+
+
+
+
+
+
