@@ -12,7 +12,7 @@ use nom::{
   character::complete::{digit1,multispace0, char},
   branch::alt,
   combinator::map,
-  sequence::{preceded, tuple, delimited},
+  sequence::{preceded, tuple, delimited, terminated},
   character::is_alphanumeric,
   multi::many0,
  // complete::take,
@@ -114,9 +114,13 @@ fn main() {
         // )
     // )(varib);
 
-    let x = put_in_box("1+2+func(1+2)+3+a");
+    // let x = put_in_box("1+2+func(1+2)+3+a");
 
-
+    let x = testfunktion("(
+    let x = 5;
+    while jada;
+    a=7+6(2*7); 
+    return a;)....slut)");
 
 
    // let x: IResult<&str, &str> = take(z)(varib);
@@ -126,10 +130,9 @@ fn main() {
 
 
 
-
 fn variable_parser(input: &str) -> Box<variable>{
 
-    let (input, varname) = match variable_name_parser(input){
+    let (input, varname) = match name_parser(input){
         Ok(v) => v,
         Err(q) => ("error","error")
     };
@@ -164,11 +167,14 @@ fn variable_parser(input: &str) -> Box<variable>{
 
 }
 
-fn variable_name_parser(input: &str) -> IResult<&str, &str>{
+fn name_parser(input: &str) -> IResult<&str, &str>{
     let (input, varname) = preceded(
         multispace0,
         preceded(
-            tag("let"),
+            alt((
+                tag("let"),
+                tag("fn"),
+            )),
             preceded(
                 multispace0,
                 take_while1(char::is_alphanumeric),
@@ -329,11 +335,18 @@ fn operator(input: &str) -> (&str, op){
 }
 
 fn get_parentheses_content(input: &str) -> IResult<&str,&str>{
-    delimited(
-        tag("("),
-        take_until(")"),
-        tag(")"),
-    )(input)
+    alt((
+        delimited(
+            tag("("),
+            take_until(")"),
+            tag(")"),
+        ),
+        delimited(
+            tag("{"),
+            take_until("}"),
+            tag("}"),
+        ),
+    ))(input)
 }
 
 
@@ -372,10 +385,75 @@ fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_ca
     return Box::new(list)
 } 
 
-fn function_parser(input: %str) -> IResult<&str,&str>{
 
-    tag("fn")(input);
+
+
+fn get_funk_body(input: &str) -> IResult<&str, Vec<&str>>{        
+
+    delimited(
+        preceded(
+            multispace0,
+            tag("("),
+        ),
+        many0(
+            preceded(
+                multispace0,
+                terminated(
+                    take_until(";"),
+                    tag(";"),
+                ),
+            )
+        ),
+        tag(")"),
+    )(input)       
 }
+
+
+
+
+
+fn return_parser(input: &str) -> IResult<&str, Type>{
+    preceded(
+        multispace0,
+        preceded(
+            tag("->"),
+            preceded(
+                multispace0,
+                alt((
+                    map(tag("i32"), |_| Type::Integer),
+                    map(tag("bool"), |_| Type::Boolean)
+                )),
+            ),
+        ),
+    )(input)
+}
+
+
+fn function_parser(input: &str) -> IResult<&str,&str>{
+    let (input, varname) = match name_parser(input){
+        Ok(v) => v,
+        Err(q) => ("error","error")
+    }(input)
+ 
+    let (_, paren_cont) = match get_parentheses_content(input){
+        Ok(v) => v,
+        Err(q) => ("error","error"),
+    }(input)
+ 
+    let (input2, return_type) = match return_parser(input){
+        Ok(v) => v,
+        Err(q) => ("error", Type::unknown(0))
+    }(input) 
+ 
+    if return_type == Type::unknown(0){
+        let (input, curl_para_cont) = match get_parentheses_content(input){
+            Ok(v) => v,
+            Err(q) => ("error", "error" ),
+
+        }
+ 
+    }
+ }
 
 
 
