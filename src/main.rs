@@ -116,14 +116,16 @@ fn main() {
     // )(varib);
 
     // let x = put_in_box("1+2+func(1+2)+3+a");
+    let input = "(a+b)";
+    let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
 
-    let x = get_funk_body(
-        "(
-    let x = 5;
-    while jada;
-    a=7+6(2*7); 
-    return a;)....slut)",
-    );
+    //let x = get_funk_body(
+    //       "(
+    //  let x = 5;
+    // while jada;
+    //a=7+6(2*7);
+    //return a;)....slut)",
+    // );
 
     // let x: IResult<&str, &str> = take(z)(varib);
     println!("{:?}", x);
@@ -359,6 +361,16 @@ fn return_parser(input: &str) -> IResult<&str, Type> {
     )(input)
 }
 
+fn function_body_elements(mut input_Vec: Vec<&str>) {
+    // -> Box<function_elements>{
+    let input = input_Vec.pop();
+    let (rest, value) =
+        match preceded(multispace0, alt((tag("let"), take_while1(is_alphanumeric))))(input) {
+            ok(v) => v,
+            Err(q) => q,
+        };
+}
+
 fn function_parser(input: &str) {
     // -> IResult<&str,&str>{
     let (input, varname) = match name_parser(input) {
@@ -377,7 +389,7 @@ fn function_parser(input: &str) {
     };
 
     if return_type == Type::unknown(0) {
-        let (input, curl_para_cont) = match get_parentheses_content(input) {
+        let (input, curl_para_cont) = match get_funk_body(input) {
             Ok(v) => v,
             Err(q) => ("error", "error"),
         };
