@@ -36,6 +36,12 @@ enum op {
     div,
     mult,
     res,
+    less,
+    greater,
+    lessEqual,
+    greatEqual,
+    and,
+    or,
     wrong,
     unknown(usize),
     // &&,
@@ -93,7 +99,7 @@ enum function_arguments_call {
 #[derive(Debug, PartialEq, Eq)]
 enum function_elements {
     ele_list(Box<function_elements>, Box<function_elements>),
-    variable,
+    boxs(Box<variable>),
     List,
     function,
 }
@@ -279,6 +285,10 @@ fn operator(input: &str) -> (&str, op) {
             map(tag("/"), |_| op::div),
             map(tag("-"), |_| op::sub),
             map(tag("%"), |_| op::res),
+            map(tag("<"), |_| op::less),
+            map(tag(">"), |_| op::greater),
+            map(tag("<="), |_| op::lessEqual),
+            map(tag(">="), |_| op::greatEqual),
             //map(take_till(is_alphanumeric), |r: &[str]| op::unknown(r.len())),
         )),
     )(input);
@@ -361,14 +371,37 @@ fn return_parser(input: &str) -> IResult<&str, Type> {
     )(input)
 }
 
-fn function_body_elements(mut input_Vec: Vec<&str>) {
-    // -> Box<function_elements>{
-    let input = input_Vec.pop();
-    let (rest, value) =
-        match preceded(multispace0, alt((tag("let"), take_while1(is_alphanumeric))))(input) {
-            ok(v) => v,
-            Err(q) => q,
-        };
+fn function_body_elements(mut input_Vec: Vec<&str>) -> Box<function_elements> {
+    let input: &str = input_Vec.pop().unwrap();
+    let (rest, value) = match thing(input) {
+        Ok(v) => v,
+        Err(_q) => ("error", "error"),
+    };
+    let whtrem = input.trim_start_matches(" ");
+    if whtrem.starts_with("let") {
+        let x = variable_parser(input);
+        let list = function_elements::ele_list(
+            Box::new(function_elements::boxs(x)),
+            function_body_elements(input_Vec),
+        );
+        return Box::new(list);
+    } else if whtrem.starts_with("return") {
+        panic!("Fix later");
+    //Do stuff
+    } else {
+        panic!("Fix later");
+    }
+}
+
+fn thing(input: &str) -> IResult<&str, &str> {
+    preceded(
+        multispace0,
+        alt((
+            tag("let"),
+            tag("return"),
+            take_while1(char::is_alphanumeric),
+        )),
+    )(input)
 }
 
 fn function_parser(input: &str) {
@@ -391,7 +424,17 @@ fn function_parser(input: &str) {
     if return_type == Type::unknown(0) {
         let (input, curl_para_cont) = match get_funk_body(input) {
             Ok(v) => v,
-            Err(q) => ("error", "error"),
+            Err(q) => ("error", vec!["error"]),
         };
     }
+}
+
+fn if_parser(input: &str) -> Box<List> {
+    let condition: IResult<&str, &str> =
+        preceded(multispace0, delimited(tag("if"), take_until("{"), tag("{")))(input);
+    let (restString, value) = match condition {
+        Ok(v) => v,
+        Err(e) => ("j4d4", "£rr0r"),
+    };
+    put_in_box(value)
 }
