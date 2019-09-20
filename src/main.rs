@@ -281,12 +281,14 @@ fn operator(input: &str) -> (&str, op) {
         multispace0,
         alt((
             map(tag("+"), |_| op::add),
-            map(tag("*"), |_| op::mult),
             map(tag("/"), |_| op::div),
             map(tag("-"), |_| op::sub),
             map(tag("%"), |_| op::res),
             map(tag("<"), |_| op::less),
+            map(tag("*"), |_| op::mult),
             map(tag(">"), |_| op::greater),
+            map(tag("||"), |_| op::or),
+            map(tag("&&"), |_| op::and),
             map(tag("<="), |_| op::lessEqual),
             map(tag(">="), |_| op::greatEqual),
             //map(take_till(is_alphanumeric), |r: &[str]| op::unknown(r.len())),
@@ -347,11 +349,11 @@ fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_ca
     return Box::new(list);
 }
 
-fn get_funk_body(input: &str) -> IResult<&str, Vec<&str>> {
+fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<&str>> {
     delimited(
-        preceded(multispace0, tag("(")),
+        preceded(multispace0, tag("{")),
         many0(preceded(multispace0, terminated(take_until(";"), tag(";")))),
-        tag(")"),
+        tag("}"),
     )(input)
 }
 
@@ -388,6 +390,10 @@ fn function_body_elements(mut input_Vec: Vec<&str>) -> Box<function_elements> {
     } else if whtrem.starts_with("return") {
         panic!("Fix later");
     //Do stuff
+    } else if whtrem.starts_with("while") {
+        while_parser(whtrem)
+    } else if whtrem.starts_with("if") {
+        if_parser(whtrem);
     } else {
         panic!("Fix later");
     }
@@ -404,8 +410,7 @@ fn thing(input: &str) -> IResult<&str, &str> {
     )(input)
 }
 
-fn function_parser(input: &str) {
-    // -> IResult<&str,&str>{
+fn function_parser(input: &str) -> Box<function> {
     let (input, varname) = match name_parser(input) {
         Ok(v) => v,
         Err(q) => ("error", "error"),
@@ -422,17 +427,20 @@ fn function_parser(input: &str) {
     };
 
     if return_type == Type::unknown(0) {
-        let (input, curl_para_cont) = match get_funk_body(input) {
+        let (input, curl_para_cont) = match get_curl_func_body(input) {
             Ok(v) => v,
             Err(q) => ("error", vec!["error"]),
         };
+
+        let function_elements = function_body_elements(curl_para_cont);
+        let box_name = box ::new(varname);
     }
 }
 
 fn if_parser(input: &str) -> Box<List> {
     let condition: IResult<&str, &str> =
         preceded(multispace0, delimited(tag("if"), take_until("{"), tag("{")))(input);
-    let (restString, value) = match condition {
+    let (input, value) = match condition {
         Ok(v) => v,
         Err(e) => ("j4d4", "£rr0r"),
     };
