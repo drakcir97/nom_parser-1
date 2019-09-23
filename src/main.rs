@@ -55,8 +55,9 @@ enum variable_value {
     boxs(Box<List>),
     Number(i32),
     Boolean(Box<String>),
+    Nil(i32),
 }
-use crate::variable_value::{boxs, Boolean, Number};
+use crate::variable_value::{boxs, Boolean, Nil, Number};
 
 #[derive(Debug, PartialEq, Eq)]
 enum variable {
@@ -86,6 +87,7 @@ enum function {
 #[derive(Debug, PartialEq, Eq)]
 enum function_arguments {
     arg_list(variable, Box<function_arguments>),
+    variable,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -122,16 +124,15 @@ fn main() {
     // )(varib);
 
     // let x = put_in_box("1+2+func(1+2)+3+a");
-    let input = "(a+b)";
-    let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
+    //let input = "(a+b)";
+    //let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
 
-    //let x = get_funk_body(
-    //       "(
-    //  let x = 5;
-    // while jada;
-    //a=7+6(2*7);
-    //return a;)....slut)",
-    // );
+    let x = function_parser(
+        " get_funk_body(input: i32) -> i32{ 
+        let x = 5;
+        let b = 3+6+7;
+    }",
+    );
 
     // let x: IResult<&str, &str> = take(z)(varib);
     println!("{:?}", x);
@@ -171,10 +172,10 @@ fn variable_parser(input: &str) -> Box<variable> {
 fn name_parser(input: &str) -> IResult<&str, &str> {
     let (input, varname) = preceded(
         multispace0,
-        preceded(
-            alt((tag("let"), tag("fn"))),
-            preceded(multispace0, take_while1(char::is_alphanumeric)),
-        ),
+        // preceded(
+        //alt((tag("let"), tag("fn"))),
+        preceded(multispace0, take_while1(char::is_alphanumeric)),
+        // ),
     )(input)?;
 
     Ok((input, varname))
@@ -336,6 +337,15 @@ fn function_call_parentheses_parser_final(input: &str) -> Box<function_arguments
     func_var(values, reststring)
 }
 
+fn function_def_parentheses_parser_final(input: &str) -> Box<function_arguments> {
+    let (reststring, values) = match function_call_parentheses_parser(input) {
+        Ok(v) => v,
+        Err(q) => ("error", vec!["error"]),
+    };
+
+    func_variable_defin(values, reststring)
+}
+
 fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_call> {
     if input.len() == 0 {
         //return Box::new(function_arguments_call::bx(put_in_box(input.pop().unwrap())))
@@ -347,6 +357,39 @@ fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_ca
         func_var(input, reststring),
     );
     return Box::new(list);
+}
+
+fn func_variable_defin(mut input_vec: Vec<&str>, reststring: &str) -> Box<function_arguments> {
+    if input_vec.len() == 0 {
+        let (reststring, varname) = match name_parser(reststring) {
+            Ok(v) => v,
+            Err(q) => ("error", "error"),
+        };
+        let (reststring, var_type) = match variable_type_parser(reststring) {
+            Ok(v) => v,
+            Err(q) => ("error", Type::unknown(0)),
+        };
+        let variable = parameters(Box::new(String::from(varname)), var_type, Box::new(Nil(0)));
+
+        return Box::new(function_arguments::variable);
+    }
+
+    let input = input_vec.pop().unwrap();
+
+    let (input, varname) = match name_parser(input) {
+        Ok(v) => v,
+        Err(q) => ("error", "error"),
+    };
+    let (input, var_type) = match variable_type_parser(input) {
+        Ok(v) => v,
+        Err(q) => ("error", Type::unknown(0)),
+    };
+    let variable = parameters(Box::new(String::from(varname)), var_type, Box::new(Nil(0)));
+
+    return Box::new(function_arguments::arg_list(
+        variable,
+        func_variable_defin(input_vec, reststring),
+    ));
 }
 
 fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<&str>> {
@@ -374,28 +417,33 @@ fn return_parser(input: &str) -> IResult<&str, Type> {
 }
 
 fn function_body_elements(mut input_Vec: Vec<&str>) -> Box<function_elements> {
+    println!("{:?}", input_Vec);
     let input: &str = input_Vec.pop().unwrap();
     let (rest, value) = match thing(input) {
         Ok(v) => v,
         Err(_q) => ("error", "error"),
     };
     let whtrem = input.trim_start_matches(" ");
+    println!("checking call number {:?}", whtrem);
     if whtrem.starts_with("let") {
-        let x = variable_parser(input);
+        let x = variable_parser(rest);
         let list = function_elements::ele_list(
             Box::new(function_elements::boxs(x)),
             function_body_elements(input_Vec),
         );
+
         return Box::new(list);
     } else if whtrem.starts_with("return") {
-        panic!("Fix later");
+        panic!("Fix later return");
     //Do stuff
     } else if whtrem.starts_with("while") {
-        while_parser(whtrem)
+        panic!("fix later while");
+    //while_parser(whtrem)
     } else if whtrem.starts_with("if") {
-        if_parser(whtrem);
+        panic!("Fix later if")
+    //if_parser(whtrem);
     } else {
-        panic!("Fix later");
+        panic!("Fix later elsek");
     }
 }
 
@@ -416,7 +464,7 @@ fn function_parser(input: &str) -> Box<function> {
         Err(q) => ("error", "error"),
     };
 
-    let (_, paren_cont) = match get_parentheses_content(input) {
+    let (input, paren_cont) = match get_parentheses_content(input) {
         Ok(v) => v,
         Err(q) => ("error", "error"),
     };
@@ -427,14 +475,30 @@ fn function_parser(input: &str) -> Box<function> {
     };
 
     if return_type == Type::unknown(0) {
-        let (input, curl_para_cont) = match get_curl_func_body(input) {
+        let (input, curl_para_cont) = match get_curl_brack_body(input) {
             Ok(v) => v,
             Err(q) => ("error", vec!["error"]),
         };
 
+        let function_arg = function_def_parentheses_parser_final(paren_cont);
         let function_elements = function_body_elements(curl_para_cont);
-        let box_name = box ::new(varname);
+        let box_name = Box::new(String::from(varname));
+        let function =
+            function::parameters_def(box_name, function_arg, return_type, function_elements);
+
+        return Box::new(function);
     }
+    let (input, curl_para_cont) = match get_curl_brack_body(input2) {
+        Ok(v) => v,
+        Err(q) => ("error", vec!["error"]),
+    };
+
+    let function_arg = function_def_parentheses_parser_final(paren_cont);
+    let function_elements = function_body_elements(curl_para_cont);
+    let box_name = Box::new(String::from(varname));
+    let function = function::parameters_def(box_name, function_arg, return_type, function_elements);
+
+    return Box::new(function);
 }
 
 fn if_parser(input: &str) -> Box<List> {
