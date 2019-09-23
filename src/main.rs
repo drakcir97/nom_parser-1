@@ -87,7 +87,7 @@ enum function {
 #[derive(Debug, PartialEq, Eq)]
 enum function_arguments {
     arg_list(variable, Box<function_arguments>),
-    variable,
+    var(variable),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -128,12 +128,18 @@ fn main() {
     //let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
 
     let x = function_parser(
-        " get_funk_body(input: i32) -> i32{ 
-        let x = 5;
-        let b = 3+6+7;
+        "getfunkbody(input: i32) -> i32{ 
+         let x: i32 = 5;
+         let b: i32 = 3+6+7;
     }",
     );
 
+    // let x = get_curl_brack_body("{
+    // let x = 5;
+    // let b = 3+6+7;
+    // }");
+
+    //let x =  variable_parser("x: i32 = 2+3+4;");
     // let x: IResult<&str, &str> = take(z)(varib);
     println!("{:?}", x);
 }
@@ -143,16 +149,17 @@ fn variable_parser(input: &str) -> Box<variable> {
         Ok(v) => v,
         Err(q) => ("error", "error"),
     };
-
+    println!("input and varname: {:?}", (&input, &varname));
     let (input, vartype) = match variable_type_parser(input) {
         Ok(v) => v,
         Err(q) => ("error", Type::unknown(0)),
     };
-
+    println!("input and vartype: {:?}", (&input, &vartype));
     let (input, pibval) = match variable_expression_parser(input) {
         Ok(v) => v,
         Err(q) => ("error", "error"),
     };
+    println!("input and pibval {:?}", (&input, &pibval));
 
     if vartype == Type::boolean {
         let box_4_varname = Box::new(String::from(varname));
@@ -371,7 +378,7 @@ fn func_variable_defin(mut input_vec: Vec<&str>, reststring: &str) -> Box<functi
         };
         let variable = parameters(Box::new(String::from(varname)), var_type, Box::new(Nil(0)));
 
-        return Box::new(function_arguments::variable);
+        return Box::new(function_arguments::var(variable));
     }
 
     let input = input_vec.pop().unwrap();
@@ -396,7 +403,7 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<&str>> {
     delimited(
         preceded(multispace0, tag("{")),
         many0(preceded(multispace0, terminated(take_until(";"), tag(";")))),
-        tag("}"),
+        preceded(multispace0, tag("}")),
     )(input)
 }
 
@@ -417,7 +424,7 @@ fn return_parser(input: &str) -> IResult<&str, Type> {
 }
 
 fn function_body_elements(mut input_Vec: Vec<&str>) -> Box<function_elements> {
-    println!("{:?}", input_Vec);
+    println!("input_vec: {:?}", input_Vec);
     let input: &str = input_Vec.pop().unwrap();
     let (rest, value) = match thing(input) {
         Ok(v) => v,
@@ -426,7 +433,12 @@ fn function_body_elements(mut input_Vec: Vec<&str>) -> Box<function_elements> {
     let whtrem = input.trim_start_matches(" ");
     println!("checking call number {:?}", whtrem);
     if whtrem.starts_with("let") {
+        println!("rest: {:?}", rest);
         let x = variable_parser(rest);
+        println!("x: {:?}", &x);
+        if input_Vec.len() == 1 {
+            return Box::new(function_elements::boxs(x));
+        }
         let list = function_elements::ele_list(
             Box::new(function_elements::boxs(x)),
             function_body_elements(input_Vec),
@@ -463,23 +475,23 @@ fn function_parser(input: &str) -> Box<function> {
         Ok(v) => v,
         Err(q) => ("error", "error"),
     };
-
+    println!("varname: {:?}", varname);
     let (input, paren_cont) = match get_parentheses_content(input) {
         Ok(v) => v,
         Err(q) => ("error", "error"),
     };
-
+    println!("paran_cont: {:?}", paren_cont);
     let (input2, return_type) = match return_parser(input) {
         Ok(v) => v,
         Err(q) => ("error", Type::unknown(0)),
     };
-
+    println!("input2, returntype: {:?}", (input2, &return_type));
     if return_type == Type::unknown(0) {
         let (input, curl_para_cont) = match get_curl_brack_body(input) {
             Ok(v) => v,
             Err(q) => ("error", vec!["error"]),
         };
-
+        println!("curl_para_cont in if: {:?}", curl_para_cont);
         let function_arg = function_def_parentheses_parser_final(paren_cont);
         let function_elements = function_body_elements(curl_para_cont);
         let box_name = Box::new(String::from(varname));
@@ -493,6 +505,7 @@ fn function_parser(input: &str) -> Box<function> {
         Err(q) => ("error", vec!["error"]),
     };
 
+    println!("curl_para_cont out if: {:?}", curl_para_cont);
     let function_arg = function_def_parentheses_parser_final(paren_cont);
     let function_elements = function_body_elements(curl_para_cont);
     let box_name = Box::new(String::from(varname));
@@ -501,12 +514,13 @@ fn function_parser(input: &str) -> Box<function> {
     return Box::new(function);
 }
 
-fn if_parser(input: &str) -> Box<List> {
-    let condition: IResult<&str, &str> =
-        preceded(multispace0, delimited(tag("if"), take_until("{"), tag("{")))(input);
+fn if_while_parser(input: &str) {
+    // -> Box<List> {
+    let condition: IResult<&str, &str> = get_parentheses_content(input);
     let (input, value) = match condition {
         Ok(v) => v,
         Err(e) => ("j4d4", "£rr0r"),
     };
-    put_in_box(value)
+    put_in_box(value);
+    get_curl_brack_body(input);
 }
