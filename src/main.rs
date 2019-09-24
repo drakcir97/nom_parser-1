@@ -150,16 +150,16 @@ fn variable_parser(input: &str) -> Box<variable> {
         Err(q) => ("error", "error"),
     };
     println!("input and varname: {:?}", (&input, &varname));
-    let (input, vartype) = match variable_type_parser(input) {
+    let (pibval, vartype) = match variable_type_parser(input) {
         Ok(v) => v,
         Err(q) => ("error", Type::unknown(0)),
     };
-    println!("input and vartype: {:?}", (&input, &vartype));
-    let (input, pibval) = match variable_expression_parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", "error"),
-    };
-    println!("input and pibval {:?}", (&input, &pibval));
+    // println!("input and vartype: {:?}", (&input, &vartype));
+    // let (input, pibval) = match variable_expression_parser(input) {
+    // Ok(v) => v,
+    // Err(q) => ("error", "error"),
+    // };
+    // println!("input and pibval {:?}", (&input, &pibval));
 
     if vartype == Type::boolean {
         let box_4_varname = Box::new(String::from(varname));
@@ -168,7 +168,7 @@ fn variable_parser(input: &str) -> Box<variable> {
 
         return Box::new(param);
     }
-
+    println!("put in box thing {:?}", pibval);
     let x = put_in_box(pibval);
     let box_4_varname = Box::new(String::from(varname));
     let param = parameters(box_4_varname, vartype, Box::new(boxs(x)));
@@ -194,8 +194,20 @@ fn variable_type_parser(input: &str) -> IResult<&str, Type> {
         preceded(
             multispace0,
             alt((
-                map(tag("i32"), |_| Type::Integer),
-                map(tag("bool"), |_| Type::boolean),
+                alt((
+                    terminated(
+                        map(tag("i32"), |_| Type::Integer),
+                        preceded(multispace0, tag("=")),
+                    ),
+                    terminated(
+                        map(tag("bool"), |_| Type::boolean),
+                        preceded(multispace0, tag("=")),
+                    ),
+                )),
+                alt((
+                    map(tag("i32"), |_| Type::Integer),
+                    map(tag("bool"), |_| Type::boolean),
+                )),
             )),
         ),
     )(input)?;
@@ -435,8 +447,8 @@ fn function_body_elements(mut input_Vec: Vec<&str>) -> Box<function_elements> {
     if whtrem.starts_with("let") {
         println!("rest: {:?}", rest);
         let x = variable_parser(rest);
-        println!("x: {:?}", &x);
-        if input_Vec.len() == 1 {
+        println!("x variable parser result: {:?}", &x);
+        if input_Vec.len() == 0 {
             return Box::new(function_elements::boxs(x));
         }
         let list = function_elements::ele_list(
@@ -471,28 +483,36 @@ fn thing(input: &str) -> IResult<&str, &str> {
 }
 
 fn function_parser(input: &str) -> Box<function> {
+    //Gets function name
     let (input, varname) = match name_parser(input) {
         Ok(v) => v,
         Err(q) => ("error", "error"),
     };
     println!("varname: {:?}", varname);
+    //Gets functions arguments
     let (input, paren_cont) = match get_parentheses_content(input) {
         Ok(v) => v,
         Err(q) => ("error", "error"),
     };
     println!("paran_cont: {:?}", paren_cont);
+    //Gets function return type
     let (input2, return_type) = match return_parser(input) {
         Ok(v) => v,
         Err(q) => ("error", Type::unknown(0)),
     };
     println!("input2, returntype: {:?}", (input2, &return_type));
+
+    //checks if function has returntype
     if return_type == Type::unknown(0) {
+        //gets everything in curly brackets
         let (input, curl_para_cont) = match get_curl_brack_body(input) {
             Ok(v) => v,
             Err(q) => ("error", vec!["error"]),
         };
         println!("curl_para_cont in if: {:?}", curl_para_cont);
+        //puts and returns function arguments in tree
         let function_arg = function_def_parentheses_parser_final(paren_cont);
+        // puts and returns function elemenst in tree
         let function_elements = function_body_elements(curl_para_cont);
         let box_name = Box::new(String::from(varname));
         let function =
@@ -506,7 +526,9 @@ fn function_parser(input: &str) -> Box<function> {
     };
 
     println!("curl_para_cont out if: {:?}", curl_para_cont);
+    //Puts and returns function arguments in tree
     let function_arg = function_def_parentheses_parser_final(paren_cont);
+    //puts and returns function elements(function body) in tree
     let function_elements = function_body_elements(curl_para_cont);
     let box_name = Box::new(String::from(varname));
     let function = function::parameters_def(box_name, function_arg, return_type, function_elements);
