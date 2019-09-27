@@ -414,7 +414,10 @@ fn func_variable_defin(mut input_vec: Vec<&str>, reststring: &str) -> Box<functi
 fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<&str>> {
     delimited(
         preceded(multispace0, tag("{")),
-        many0(preceded(multispace0, terminated(take_until(";"), tag(";")))),
+        many0(preceded(
+            multispace0,
+            terminated(take_until(";"), alt((tag("};"), tag(";")))),
+        )),
         preceded(multispace0, tag("}")),
     )(input)
 }
@@ -536,6 +539,8 @@ fn function_parser(input: &str) -> Box<function> {
     return Box::new(function);
 }
 
+//Parses the condition, and the body of if statements and while loops and adds them to the tree
+
 fn if_while_parser(input: &str) {
     // -> Box<List> {
     let condition: IResult<&str, &str> = get_parentheses_content(input);
@@ -543,6 +548,10 @@ fn if_while_parser(input: &str) {
         Ok(v) => v,
         Err(e) => ("j4d4", "£rr0r"),
     };
-    put_in_box(value);
-    get_curl_brack_body(input);
+    let expression_box = put_in_box(value);
+    let (input, value) = match get_curl_brack_body(input) {
+        Ok(v) => v,
+        Err(q) => panic!("if while parser error in curly brackets"),
+    };
+    let body_box = function_body_elements(value);
 }
