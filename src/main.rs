@@ -15,10 +15,10 @@ use nom::{
     switch,
     IResult,
 };
+use std::borrow::Cow;
 use std::process;
 use std::result;
 use std::str;
-use std::borrow::Cow;
 
 #[derive(Debug, PartialEq, Eq)]
 enum List {
@@ -129,20 +129,22 @@ fn main() {
     //let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
 
     // let x = function_parser(
-        // "getfunkbody(input: i32) -> i32{ 
-        //  let x: i32 = 5;
-        //  let b: i32 = 3+6+7;
+    // "getfunkbody(input: i32) -> i32{
+    //  let x: i32 = 5;
+    //  let b: i32 = 3+6+7;
     // }",
     // );
 
-    let x = get_curl_brack_body("{
+    let x = get_curl_brack_body(
+        "{
         let x = 5;
         let k = 9;
         if true {
             let i = 89;
             let ifthing = 7;
         };
-    }");
+    }",
+    );
 
     // let x = get_curl_brack_body("{
     // let x = 5;
@@ -427,93 +429,105 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<&str>> {
         preceded(multispace0, tag("{")),
         many0(preceded(
             multispace0,
-            alt((
-                test,
-                terminated(take_until(";"), tag(";")),
-            )),
+            alt((test_loop, terminated(take_until(";"), tag(";")))),
         )),
         preceded(multispace0, tag("}")),
     )(input)
-
 }
 
-fn test<'a>(input: &str) -> IResult<&str,&str>{
+// fn test<'a>(input: &str) -> IResult<&str,&str>{
+// let z: u8 = 0;
+// let delimited_var: IResult<&str, &str> = delimited(
+// tag("if"),
+// take_until("{"),
+// take(z),
+// )(input);
+// let (input, value) = match delimited_var {
+// Ok (v) => v,
+//Err(e) => panic!("asd"),
+// _ => panic!("asd"),
+// };
+//
+// let (input, curl_body) = match get_curl_brack_body(input){
+// Ok(v)=>v,
+// Err(q)=>panic!("jaifda"),
+// };
+//
+// let mut fullstring: String = "if".to_string();
+// fullstring.push_str(&value);
+// let mut loopstring: Cow<String> = Cow::Borrowed(&fullstring);
+//let fullstring1 = format!("if {}",value);
+// for string in curl_body{
+// string.to_string().push_str(";");
+// loopstring.push_str(string);
+// let tempstr = concat_str(&loopstring.to_string(),string);
+// &loopstring.push_str(string);
+// let loopstring = Cow::Owned(loopstring);
+// }
+//
+// let loopstring: Cow<String> = Cow::Owned(loopstring);
+// let s_slice: &str = &loopstring[..];
+//
+// return Ok((input, s_slice));
+// }
+//
+// fn concat_str(inp1: &'static str, inp2: &'static str) -> &'static str {
+// inp1.to_string().push_str(inp2);
+// return &inp1;
+// }
+//
+//
+//https://doc.rust-lang.org/rust-by-example/flow_control/loop/return.html
+
+fn test_loop(input: &str) -> IResult<&str, &str> {
     let z: u8 = 0;
-    let delimited_var: IResult<&str, &str> = delimited(
-            tag("if"),
-            take_until("{"),
-            take(z),
-        )(input);
+    let delimited_var: IResult<&str, &str> = delimited(tag("if"), take_until("{"), take(z))(input);
     let (input, value) = match delimited_var {
-        Ok (v) => v,
+        Ok(v) => v,
         //Err(e) => panic!("asd"),
         _ => panic!("asd"),
     };
 
-    let (input, curl_body) = match get_curl_brack_body(input){
-        Ok(v)=>v,
-        Err(q)=>panic!("jada"),
+    let (input, mut curl_body) = match get_curl_brack_body(input) {
+        Ok(v) => v,
+        Err(q) => panic!("jada"),
     };
-
-    let mut fullstring: String = "if".to_string();
+    let mut fullstring = "if".to_string();
     fullstring.push_str(&value);
-    let mut loopstring: Cow<String> = Cow::Borrowed(&fullstring);
- //   let fullstring1 = format!("if {}",value);
-    for string in curl_body{
-        string.to_string().push_str(";");
-        loopstring.push_str(string);
-        //let tempstr = concat_str(&loopstring.to_string(),string);
-        //&loopstring.push_str(string);
-        //let loopstring = Cow::Owned(loopstring);
-    }
+    let mut counter = curl_body.len();
 
-    let loopstring: Cow<String> = Cow::Owned(loopstring);
-    let s_slice: &str = &loopstring[..];
-
-    return Ok((input, s_slice));
+    let fullstr = loop {
+        if counter == 0 {
+            break fullstring;
+        }
+        fullstring.push_str(curl_body.pop().unwrap());
+        fullstring.to_owned();
+        counter = curl_body.len();
+    };
+    fullstr.to_owned();
+    //let testvar = test3(fullstring);
+    let testvar: &str = fullstr.as_str();
+    return Ok((input, testvar));
 }
 
-fn concat_str(inp1: &'static str, inp2: &'static str) -> &'static str {
-    inp1.to_string().push_str(inp2);
-    return &inp1;
-}
-
-
-//https://doc.rust-lang.org/rust-by-example/flow_control/loop/return.html
-
-
-// fn main() {
-    // let mut counter = 0;
-// 
-    // let result = loop {
-        // counter += 1;
-// 
-        // if counter == 10 {
-            // break counter * 2;
-        // }
-    // };
-// 
-    // assert_eq!(result, 20);
+// fn test3(input: String) -> &str{
+//     input.to_owned();
+//     let fullstr: &str = &input[..];
+//     return fullstr
 // }
 
-
-
-
-
-
-
 // fn test2(input: Vec<&str>) -> String{
-    // if input.len() == 0{
-        // let string = input.pop().unwrap();
-        // let string: String = string.to_string();
-        // return string
-    // }
-    // 
-    // let string = input.pop().unwrap();
-    // let string: String = string.to_string();
-    // let string2 = test2(input);
-    // string.push_str(&string2)
-// 
+// if input.len() == 0{
+// let string = input.pop().unwrap();
+// let string: String = string.to_string();
+// return string
+// }
+//
+// let string = input.pop().unwrap();
+// let string: String = string.to_string();
+// let string2 = test2(input);
+// string.push_str(&string2)
+//
 // }
 
 fn return_parser(input: &str) -> IResult<&str, Type> {
