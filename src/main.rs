@@ -103,8 +103,14 @@ enum function_arguments_call {
 enum function_elements {
     ele_list(Box<function_elements>, Box<function_elements>),
     boxs(Box<variable>),
+    if_box(Box<if_enum>),
     List,
     function,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum if_enum{
+    condition(Box<List>,Box<function_elements>)
 }
 
 fn main() {
@@ -121,7 +127,7 @@ fn main() {
     // take(z),
     // take_until(","),
     // tag(","),
-    // )
+    // )val.pop()
     // )(varib);
 
     // let x = put_in_box("1+2+func(1+2)+3+a");
@@ -140,6 +146,10 @@ fn main() {
         let x = 5;
         let k = 9;
         if true {
+            if jdad {
+                let banna = false;
+                let apple = true;
+            };
             let i = 89;
             let ifthing = 7;
         };
@@ -152,8 +162,14 @@ fn main() {
     // }");
 
     //let x =  variable_parser("x: i32 = 2+3+4;");
-    // let x: IResult<&str, &str> = take(z)(varib);
-    println!("{:?}", x);
+    // let x: IResult<&str, &str> = take(z)(varib);'a
+    println!("{:?}", &x);
+    let (rest, mut val)= match x{
+        Ok(v)=>v,
+        Err(_) => panic!("jada")
+    };
+    val.pop();
+    println!("{:?}", val.pop())
 }
 
 fn variable_parser(input: &str) -> Box<variable> {
@@ -429,7 +445,8 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<&str>> {
         preceded(multispace0, tag("{")),
         many0(preceded(
             multispace0,
-            alt((test_loop, terminated(take_until(";"), tag(";")))),
+           // alt((test_loop, terminated(take_until(";"), tag(";")))),
+            terminated(take_until(";"), tag(";")),
         )),
         preceded(multispace0, tag("}")),
     )(input)
@@ -478,38 +495,38 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<&str>> {
 //
 //
 //https://doc.rust-lang.org/rust-by-example/flow_control/loop/return.html
-
-fn test_loop(input: &str) -> IResult<&str, &str> {
-    let z: u8 = 0;
-    let delimited_var: IResult<&str, &str> = delimited(tag("if"), take_until("{"), take(z))(input);
-    let (input, value) = match delimited_var {
-        Ok(v) => v,
-        //Err(e) => panic!("asd"),
-        _ => panic!("asd"),
-    };
-
-    let (input, mut curl_body) = match get_curl_brack_body(input) {
-        Ok(v) => v,
-        Err(q) => panic!("jada"),
-    };
-    let mut fullstring = "if".to_string();
-    fullstring.push_str(&value);
-    let mut counter = curl_body.len();
-
-    let fullstr = loop {
-        if counter == 0 {
-            break fullstring;
-        }
-        fullstring.push_str(curl_body.pop().unwrap());
-        fullstring.to_owned();
-        counter = curl_body.len();
-    };
-    fullstr.to_owned();
-    //let testvar = test3(fullstring);
-    let testvar: &str = fullstr.as_str();
-    return Ok((input, testvar));
-}
-
+// 
+// fn test_loop(input: &str) -> IResult<&str, &str> {
+    // let z: u8 = 0;
+    // let delimited_var: IResult<&str, &str> = delimited(tag("if"), take_until("{"), take(z))(input);
+    // let (input, value) = match delimited_var {
+        // Ok(v) => v,
+       //// Err(e) => panic!("asd"),
+        // _ => panic!("asd"),
+    // };
+// 
+    // let (input, mut curl_body) = match get_curl_brack_body(input) {
+        // Ok(v) => v,
+        // Err(q) => panic!("jada"),
+    // };
+    // let mut fullstring = "if".to_string();
+    // fullstring.push_str(&value);
+    // let mut counter = curl_body.len();
+// 
+    // let fullstr: String = loop {
+        // if counter == 0 {
+            // break fullstring;
+        // }
+        // fullstring.push_str(curl_body.pop().unwrap());
+        // fullstring.to_owned();
+        // counter = curl_body.len();
+    // };
+    // fullstr.to_owned();
+    ////let testvar = test3(fullstring);
+    // let testvar: &str = fullstr.as_str();
+    // return Ok((input, testvar));
+// }
+// 
 // fn test3(input: String) -> &str{
 //     input.to_owned();
 //     let fullstr: &str = &input[..];
@@ -546,18 +563,18 @@ fn return_parser(input: &str) -> IResult<&str, Type> {
     )(input)
 }
 
-fn function_body_elements(mut input_Vec: Vec<&str>) -> Box<function_elements> {
+fn function_body_elements(mut input_Vec: Vec<&str>) -> (Box<function_elements>, Vec<&str>) {
     println!("input_vec: {:?}", input_Vec);
-    let input: &str = input_Vec.pop().unwrap();
-    let (rest, value) = match thing(input) {
+    let input_str: &str = input_Vec.swap_remove(0);
+    let (input, value) = match thing(input_str) {
         Ok(v) => v,
         Err(_q) => ("error", "error"),
     };
-    let whtrem = input.trim_start_matches(" ");
+    let whtrem = input_str.trim_start_matches(" ");
     println!("checking call number {:?}", whtrem);
     if whtrem.starts_with("let") {
-        println!("rest: {:?}", rest);
-        let x = variable_parser(rest);
+        println!("rest: {:?}", input);
+        let x = variable_parser(input);
         println!("x variable parser result: {:?}", &x);
         if input_Vec.len() == 0 {
             return Box::new(function_elements::boxs(x));
@@ -575,8 +592,15 @@ fn function_body_elements(mut input_Vec: Vec<&str>) -> Box<function_elements> {
         panic!("fix later while");
     //while_parser(whtrem)
     } else if whtrem.starts_with("if") {
-        panic!("Fix later if")
-    //if_parser(whtrem);
+        let (if_box, input_vec) = if_while_parser(input, input_Vec);
+        if input_vec.len = 0{
+            let list = function_elements::if_box(if_box);
+            return Box::new(list)
+        }
+
+
+        panic!("fuuck");
+
     } else {
         panic!("Fix later elsek");
     }
@@ -649,17 +673,27 @@ fn function_parser(input: &str) -> Box<function> {
 
 //Parses the condition, and the body of if statements and while loops and adds them to the tree
 
-fn if_while_parser(input: &str) {
-    // -> Box<List> {
+fn if_while_parser(input: &str, input_vec: Vec<&'static str>) -> (Box<if_enum>, Vec<&'static str>) {
     let condition: IResult<&str, &str> = get_parentheses_content(input);
     let (input, value) = match condition {
         Ok(v) => v,
         Err(e) => ("Error", "if_while_parser failed"),
     };
     let expression_box = put_in_box(value);
-    let (input, value) = match get_curl_brack_body(input) {
+
+    let deleted_ws_brac: IResult<&str,&str>  = preceded(multispace0, tag("{"),)(input);
+    let (input,_) = match deleted_ws_brac{
         Ok(v) => v,
-        Err(q) => panic!("if while parser error in curly brackets"),
+        Err(q) => panic!("if expression wrong") 
     };
-    let body_box = function_body_elements(value);
+    
+    let vector: Vec<&str> = vec!(input); 
+    let (body_box2, vector) = function_body_elements(vector);
+    let (body_box, input_vec) = function_body_elements(input_vec);
+    let input_vec: Vec<&str> = input_vec;
+    let arglist = Box::new(function_elements::ele_list(body_box2,body_box));
+
+    let list = (if_enum::condition(expression_box, arglist));
+    return (Box::new(list), input_vec)
+
 }
