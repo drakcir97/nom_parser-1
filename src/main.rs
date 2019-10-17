@@ -147,7 +147,7 @@ fn main() {
     // )val.pop()
     // )(varib);
 
-    let x = put_in_box("1+(2-3);");
+    let x = put_in_box("1+(2-(3/9)+2);");
     //let x = variable_parser("let x: i32 = 6+7;");
     //let input = "(a+b)";
     //let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
@@ -322,7 +322,47 @@ fn tag_semi_col(input: &str) -> IResult<&str,&str>{
 fn put_in_box(input: &str) -> IResult<&str,expr> {
     println!("inputTTTTT: {:?}", input);
     let (input, value1) = match get_parentheses_body(input){
-        Ok(v)=>v,
+        Ok(v)=>{
+            let if_var = if v.0 == ";" || v.0 == "" {
+                return Ok(("",v.1))
+            }else{
+                let (checkvar1,checkvar2)= match tag_semi_col(v.0){
+                     Ok(v)=>v,
+                     Err(q)=> ("error","Error")
+                };
+                let if_var_inner = if checkvar2 == ";" || checkvar2 == ")"{
+                    println!("restvalue and checkvar1: {:?}", (&v.0, &checkvar1));
+                    Ok((checkvar1 ,v.1))
+                }else{       
+                    let (restvalue, operator) = operator(v.0)?;
+                    println!("CHECK IF OPERATOR FUCKS: {:?}", (&restvalue, &operator));
+                    let (input, value2) = put_in_box(restvalue)?; //{
+                    //     Ok(v) => v,
+                    //      _ => panic!()
+                    // };
+                    println!("put in box returns input, value2: {:?}", (&input, &value2));
+                    let value2 = match value2 {
+                         expr::list(value2)=>value2,
+                         _=> panic!(),
+                    };
+                    let value = match v.1{
+                        expr::list(value)=>value,
+                        _=> panic!()
+                    };
+                    println!("value2 after change: {:?}", &value2);
+                    let list = Cons(Box::new(value), operator,Box::new((value2)));
+                    Ok((input,expr::list(list)))
+                };
+                return if_var_inner;
+            };
+            return if_var;
+            
+            // println!("value2 after change: {:?}", &value2);
+            // let list = Cons(Box::new(value), operator,Box::new((value2)));
+            // (input,expr::list(list))
+
+            
+        },
         Err(q)=>{
         println!("DID NOT FINNISH!!!!");
         let (restvalue, value) = finalparser(input);
@@ -442,7 +482,6 @@ fn put_in_box(input: &str) -> IResult<&str,expr> {
         };
     println!("input and value1 ; {:?}", (&input, &value1));
     return Ok((input, value1));
-
 }
 
 fn parser(input: &str) -> IResult<&str, &str> {
