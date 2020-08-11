@@ -840,6 +840,7 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
                             let vval = var_execute(oldfunctionname.clone(), v.clone(), state, idmap, addressmap, currentid);
                             let varToAdd = hashvariable::var(vnam,vval);
                             addLocalVariable(unbox(functionname.clone()), varToAdd, state);
+                            //Adds with incorrect name and real value instead of address. FIX LATER -----------------------------------------------------------------------------------------------------
                         },
                         _ => (),
                     };

@@ -46,6 +46,7 @@ fn main() {
     let x = parserun(
         "fn getfunkbody(input: i32) -> i32{
             let z:i32 = 9;
+            let nvar:i32 = input;
         }
 
         fn main(input: i32) -> i32{
