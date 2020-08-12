@@ -190,7 +190,7 @@ fn tag_semi_col(input: &str) -> IResult<&str, &str> {
 // }
 // }
 
-fn put_in_box(input: &str) -> IResult<&str, expr> {
+pub fn put_in_box(input: &str) -> IResult<&str, expr> {
     // ////println!("inputTTTTT: {:?}", input);
     //println!("Enterd Put In BOX");
     //println!("with input: {:?}",&input);
@@ -287,10 +287,13 @@ fn put_in_box(input: &str) -> IResult<&str, expr> {
                         let if_val = if v.0 == ";" || v.0 == "" {
                             ("", expr::list(list_var))
                         } else {
-                            let (checkvar1, checkvar2) = tag_semi_col(v.0)?; //{
-                                                                             // Ok(v)=>v,
-                                                                             // Err(q)=> ("error","error")
-                                                                             // };
+                            //println!("{:?}",&v.0);
+        
+                            let (checkvar1, checkvar2) = match tag_semi_col(v.0) {
+                                                                              Ok(v)=>v,
+                                                                             Err(q)=> ("error","error")
+                                                                              };
+                           // println!("checkvar {:?}",&checkvar2);
                             let if_val_inner = if checkvar2 == ";" || checkvar2 == ")" {
                                 // ////println!("v.0 and checkvar1: {:?}", (&v.0, &checkvar1));
                                 (checkvar1, expr::list(list_var))
@@ -320,10 +323,10 @@ fn put_in_box(input: &str) -> IResult<&str, expr> {
                         let if_val = if restvalue == ";" || restvalue == "" {
                             ("", expr::list(list_var))
                         } else {
-                            let (checkvar1, checkvar2) = tag_semi_col(restvalue)?; //{
-                                                                                   // Ok(v)=>v,
-                                                                                   // Err(q)=> ("error","Error")
-                                                                                   // };
+                            let (checkvar1, checkvar2) = match tag_semi_col(restvalue){
+                                Ok(v)=>v,
+                                Err(q)=> ("error","Error"),
+                            };
                             let if_val_inner = if checkvar2 == ";" || checkvar2 == ")" {
                                 // ////println!(
                                 //    // "restvalue2 and checkvar1: {:?}",
@@ -473,7 +476,7 @@ fn function_def_parentheses_parser_final(input: &str) -> Box<function_arguments>
 
 fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_call> {
     //println!("Entered funcvar");
-    //println!("with input: {:?}",(&input, &reststring));
+    println!("with input: {:?}",(&input, &reststring));
     if input.len() == 0 {
         // ////println!("enter check");
         //return Box::new(function_arguments_call::bx(put_in_box(input.pop().unwrap())))
@@ -557,6 +560,7 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
                 if_parser,
                 variable_parser,
                 put_in_box,
+                function_call_return_parser,
                 //function_parser,
             )),
         )),
@@ -638,6 +642,7 @@ fn function_body_elements(mut input_Vec: Vec<expr>) -> (Box<function_elements>) 
         expr::variable(v) => function_elements::variable(v),
         expr::if_enum(a) => function_elements::if_enum(a),
         expr::while_enum(b) => function_elements::while_enum(b),
+        expr::return_val(b) => function_elements::return_val(b),
     };
     if input_Vec.len() == 0 {
         return Box::new(input_fe);
@@ -769,4 +774,21 @@ fn while_parser(input: &str) -> IResult<&str, expr> {
     let (input, _) = tag(";")(input)?;
 
     Ok((input, expr::while_enum(list)))
+}
+
+fn function_call_return_parser(input: &str) -> IResult<&str,expr>{
+    let (input,_) = preceded(multispace0,tag("return"))(input)?;
+    //println!( "After tag {:?}", &input);
+    let (input, pibresult) = put_in_box(input)?;
+    //println!( "After Put_in_box {:?}", (&input,&pibresult));
+    let pibresult = match pibresult {
+        expr::list(a) => a,
+        _ => panic!("wrong in condition"),
+    };
+
+    let pibresult = variable_value::boxs(Box::new(pibresult));  
+
+
+
+    Ok((input, expr::return_val(pibresult)))
 }

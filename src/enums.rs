@@ -7,6 +7,7 @@ pub enum expr {
     variable(variable),
     if_enum(if_enum),
     while_enum(while_enum),
+    return_val(variable_value),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

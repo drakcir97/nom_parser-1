@@ -22,10 +22,10 @@ fn main() {
     // tag(","),
     // )val.pop()
     // )(varib);
-
-    // let x = put_in_box("1+(2-(3/9)+2);");
-
-    // let x = put_in_box("1+2-trst(3/9)+2;");
+// 
+    // let x = parser::put_in_box("1+(2-(3/9)+2);");
+// 
+    //let x = parser::put_in_box("1+2-trst+2;");
 
     // let x = put_in_box("let x: i32 = 6+7;");
     
@@ -51,9 +51,10 @@ fn main() {
 
         fn main(input: i32) -> i32{
             let testvar:i32 = 5;
-            getfunkbody(testvar);
+            getfunkbody(testvar,5,6);
             let testvar2:i32 = 6;
-            let testvar3:i32 = 7;
+            let testvar3:i32 = 3;
+            return 3+test(1);
 
         }
         
@@ -63,9 +64,9 @@ fn main() {
         }
         "
         );
-
-    //
-
+// 
+    
+// 
     // let x = if_parser("if (1+2){
     // let x:i32 = 5;
     // let y: i32 =18*7;
@@ -103,5 +104,5 @@ fn parserun(st : &str) {
     typechecker::typechecker(parsed.clone());
     let result = interpreter::execute(parsed.clone());
 
-    println!("getState 'getfunkbody' {:?}",result);
+    println!("Program state \n {:?}",result);
 }

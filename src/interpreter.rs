@@ -112,8 +112,8 @@ pub fn execute(pg: Program) -> Vec<(String, hashstate)> {
 // Such as if statement in code using the given condition.
 fn execute_List(functionname: String, ls: List, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) -> i32{
     match ls{
-        List::paran(v) => {return execute_List(functionname, unbox(v), state, idmap, addressmap, currentid)},
-        List::Cons(v,w,x) => {return cons_execute(functionname,v,w,x,state,idmap,addressmap,currentid)},
+        List::paran(v) => {return execute_List(functionname.clone(), unbox(v), state, idmap, addressmap, currentid)},
+        List::Cons(v,w,x) => {return cons_execute(functionname.clone(),v,w,x,state,idmap,addressmap,currentid)},
         List::Num(v) => {return v},
         List::boolean(v)=>{
             if v == true {
@@ -123,7 +123,7 @@ fn execute_List(functionname: String, ls: List, state: &mut HashMap<String, hash
             }
         },
         List::func(fu) => {
-            function_execute(functionname, fu.clone(), state, idmap, addressmap, currentid);
+            function_execute(functionname.clone(), fu.clone(), state, idmap, addressmap, currentid);
             let _func_var = match fu.clone(){
                 function::parameters_def(_l,_m,_n,_o)=>{return 0}, 
                 function::parameters_call(v,_w)=>{
@@ -155,7 +155,7 @@ fn execute_List(functionname: String, ls: List, state: &mut HashMap<String, hash
             };
             return 0;
         },
-        List::var(v) => {return var_execute(Box::new(functionname), v, state, idmap, addressmap, currentid)},
+        List::var(v) => {return var_execute(Box::new(functionname.clone()), v, state, idmap, addressmap, currentid)},
         _ => panic!("Something went wrong: execute_List"),
     };
 }
@@ -166,6 +166,7 @@ fn changeState(function: String, st: hashstate, state: &mut HashMap<String, hash
     state.insert(function,st); //Adds state if it does not exists, updates value 'st' if it does.
 }
 
+//Changes a state of a function, can be used to change status, modify local variables or to change the function.
 fn changeFunctionState(function: String, st: functionstate, state: &mut HashMap<String, hashstate>) {
     let oldstate = getState(function.clone(),state);
     match oldstate.clone() {
@@ -199,12 +200,27 @@ fn getState(function: String, state: &mut HashMap<String, hashstate>) -> &hashst
     }
 }
 
+//Returns all states currently stored.
 fn getAllStates(state: &mut HashMap<String, hashstate>) -> Vec<(String, hashstate)> {
     let mut result: Vec<(String, hashstate)> = Vec::new();
     for (nm, val) in state.iter() {
         result.push((nm.clone(),val.clone()));
     }
     return result;
+}
+
+//Increases line for function by 1, returns the current line executing.
+fn increaseLineForFunction(function: String, state: &mut HashMap<String, hashstate>) -> i32 {
+    let stfn = getState(function.clone(), state);
+    match stfn.clone() {
+        hashstate::state(fst, ha, fu, ln) => {
+            let nst = hashstate::state(fst, ha, fu, ln+1);
+            changeState(function.clone(), nst, state);
+            return ln+1;     
+        }
+        _ => panic!("State not found: increaseLineForFunc")
+    }
+    return 0;
 }
 
 // //Adds var to vector of local variables in function. Returns true if it succeeded. 
@@ -226,6 +242,7 @@ fn addLocalVariable(function: String, inp: hashvariable, state: &mut HashMap<Str
     }
 }
 
+//Gets local variable from function, returns hashvariable::Nil if none is found.
 fn getLocalVariable(function: String, inp: String, state: &mut HashMap<String, hashstate>) -> hashvariable {
     if state.contains_key(&function) { 
         let prevstate = getState(function,state);
@@ -250,6 +267,7 @@ fn getLocalVariable(function: String, inp: String, state: &mut HashMap<String, h
     return hashvariable::Nil;
 }
 
+//Remove local variable if there is a match found.
 fn removeLocalVariable(function: String, inp: hashvariable, state: &mut HashMap<String, hashstate>) -> hashvariable {
     if state.contains_key(&function) {
         let a = function.clone();
@@ -278,7 +296,7 @@ fn removeLocalVariable(function: String, inp: hashvariable, state: &mut HashMap<
     }
 }
 
-
+//Removes all local variables for input function, this does not remove them from memory.
 fn removeAllLocalVariables(function: String, state: &mut HashMap<String, hashstate>)-> bool{
     if state.contains_key(&function){
         let a = function.clone();
@@ -317,6 +335,7 @@ fn addToMemory(address: i32, data: hashdata, idmap: &mut HashMap<i32,i32>,addres
     panic!("idmap already contains id!");
 }
 
+//Replace value at address with given hashdata.
 fn replaceAtMemory(address: i32, data: hashdata, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>) -> bool {
     if !addressmap.contains_key(&address) {
         let _toret = addressmap.remove(&address);
@@ -338,7 +357,8 @@ fn addPointer(address: i32, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMa
     panic!("idmap already contains id!")
 }
 
-fn removeFromMemory(address: i32, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) -> hashdata {
+//Removes value at specified address, note that this is only in addressmap.
+fn removeFromMemory(address: i32, idmap: &mut HashMap<i32,i32>, addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) -> hashdata {
     if addressmap.contains_key(&address) {
         if idmap.contains_key(&address) {
             let temp = idmap.get(&address);
@@ -519,7 +539,7 @@ fn cons_execute(functionname: String, l: Box<List>, oper: op ,r:  Box<List>, sta
 
         
 
-        _=>panic!("Operand not supported: cons_execute")
+        _ => panic!("Operand not supported: cons_execute")
     };
 
     expr
@@ -529,7 +549,7 @@ fn unbox<T>(value: Box<T>) -> T {
     *value
 }
 
-//Executes a function
+//Executes a function, includes changing the status of prev function to Calling.
 fn function_execute(functionname: String, func_var: function, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32){
     match func_var{
         function::parameters_def(na,_m,_n,_o)=>{
@@ -612,6 +632,9 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
                                         return panic!("Adding local variable failed: var_execute");
                                     }
                                 },
+                                List::var(v) => {
+                                    return var_execute(functionname.clone(),v , state, idmap, addressmap, currentid);
+                                }
                                 _ => (),
                             }
                         },
@@ -739,6 +762,7 @@ fn return_execute(functionname: Box<String>, var_val: variable_value, state: &mu
 
 //Execute function elements
 fn function_elements_execute(functionname: Box<String>, fe: function_elements, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32){
+    let _ln = increaseLineForFunction(unbox(functionname.clone()),state);
     match fe {
         function_elements::ele_list(v,w)=>{
             let ele1: function_elements = unbox(v);
@@ -820,6 +844,8 @@ fn function_arguments_call_execute(functionname: Box<String>, oldfunctionname: B
 }
 
 //Declares variables sent to a function through call and adds them to memeory. Handles nestled function calls.
+//Still incorrect names, names in args are the ones used when CALLING. Need to add function arguments as input for function.
+//This will ensure that the order of adding variables is correct when stepping throough args.
 fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) {
     if unbox(functionname.clone()) == "main" { //If we are in main, declare no variables.
         return;
@@ -834,16 +860,7 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
             let unb = unbox(bo);
             match unb {
                 List::var(v) => {
-                    match v.clone() {
-                        variable::name(n) => {
-                            let vnam = unbox(n);
-                            let vval = var_execute(oldfunctionname.clone(), v.clone(), state, idmap, addressmap, currentid);
-                            let varToAdd = hashvariable::var(vnam,vval);
-                            addLocalVariable(unbox(functionname.clone()), varToAdd, state);
-                            //Adds with incorrect name and real value instead of address. FIX LATER -----------------------------------------------------------------------------------------------------
-                        },
-                        _ => (),
-                    };
+                    //Add here
                 },
                 _ => (),
             };
@@ -905,7 +922,7 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
             }
         },
         function_arguments_call::variable(va) => {
-            match unbox(va) {
+            match unbox(va.clone()) {
                 variable::parameters(na,_ty,val) => {
                     match unbox(val) {
                         variable_value::Boolean(b) => {
@@ -923,7 +940,16 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
                         _ => panic!("temp"), //Might have to include more cases for variable_value here if needed. But most should be removed by eval()
                     };
                 },
-                _ => panic!("temp"),
+                variable::name(n) => {
+                    let vnam = unbox(n);
+                    let vval = var_execute(oldfunctionname.clone(), unbox(va.clone()), state, idmap, addressmap, currentid);
+                    let hdata = hashdata::valuei32(vval);
+                    let ad = addToMemory(0, hdata, idmap, addressmap, currentid);
+                    let varToAdd = hashvariable::var(vnam,ad);
+                    addLocalVariable(unbox(functionname.clone()), varToAdd, state);
+                    //Adds with incorrect name and real value instead of address. FIX LATER -----------------------------------------------------------------------------------------------------
+                },
+                _ => panic!("Type not yet supported: function_arguments_call_declare"),
             };
         },
     }
