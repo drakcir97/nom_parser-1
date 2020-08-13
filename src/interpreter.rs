@@ -227,8 +227,10 @@ fn increaseLineForFunction(function: String, state: &mut HashMap<String, hashsta
 fn addLocalVariable(function: String, inp: hashvariable, state: &mut HashMap<String, hashstate>) -> bool {
     if state.contains_key(&function) {
         let prevstate = getState(function.clone(),state);
+        //println!("prevstate: {:?}", prevstate.clone());
         match prevstate {
             hashstate::state(fnstate, va, fu, linenum) => {
+                //println!("hashstate::state{:?}", (fnstate.clone(), va.clone(), fu.clone(),linenum.clone()));
                 let mut temp: Vec<hashvariable> = unbox(va.clone());
                 temp.push(inp);
                 changeState(function.clone(),hashstate::state(Box::new(unbox(fnstate.clone())),Box::new(temp), fu.clone(),linenum.clone()),state);
@@ -646,15 +648,15 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
             return 0;
         },
         variable::name(v)=>{ // Access local var with same name and return it.
-            let lvar = getLocalVariable(unbox(functionname), unbox(v), state);
+            let lvar = getLocalVariable(unbox(functionname), unbox(v.clone()), state);
             match lvar {
                 hashvariable::var(n,a) => {
                     let mem = getFromMemory(a,addressmap);
                     let value = getFromAddressHashdata(mem, addressmap);
                     match value {
-                        hashdata::valuei32(v) => {return v},
-                        hashdata::valuebool(v) => {
-                            if v == true {
+                        hashdata::valuei32(va) => {return va},
+                        hashdata::valuebool(va) => {
+                            if va == true {
                                 return 1;
                             }
                             return 0;
@@ -663,7 +665,7 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
                     }
 
                 },
-                _ => panic!("Name given to var_execute is incorrect, not in local variables"),
+                _ => panic!("Name given {:?} is incorrect, not in local variables: to var_execute", unbox(v.clone())),
             };
             
             
@@ -753,6 +755,15 @@ fn return_execute(functionname: Box<String>, var_val: variable_value, state: &mu
                         _ => panic!("Return does not support this type: return_execute"),
                     };
                 },
+                variable_value::boxs(va) => {
+                    match unbox(va) {
+                        List::var(v) => {
+                            let varval = variable_value::variable(Box::new(v));
+                            return_execute(functionname.clone(), varval, state, idmap, addressmap, currentid);
+                        },
+                        _ => panic!("Return does not support this type: return_execute"),
+                    }
+                }
                 _ => panic!("Return does not support this type: return_execute"),
             }
         },
@@ -825,7 +836,6 @@ fn paramcall_execute(functionname: Box<String>, oldfunctionname: Box<String>, ar
 
 //Declares variables using function_arguments_call_declare and sends function further to be executed. Also changes state to Running.
 fn function_arguments_call_execute(functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) {
-    function_arguments_call_declare(functionname.clone(), oldfunctionname.clone(), args, state, idmap, addressmap, currentid);
     let st2: &mut HashMap<String, hashstate> = &mut state.clone();
     let fnstate = getState(*functionname.clone(), st2);
     match fnstate {
@@ -833,7 +843,9 @@ fn function_arguments_call_execute(functionname: Box<String>, oldfunctionname: B
             let temp = hashstate::state(Box::new(functionstate::Running),v.clone(),fu.clone(),line.clone());
             changeState(unbox(functionname.clone()),temp,state);
             match unbox(fu.clone()) {
-                function::parameters_def(_na,_inp,_ty,ele) => {
+                function::parameters_def(_na,fuag,_ty,ele) => {
+                    let functionargs = fuag.clone();
+                    function_arguments_call_declare(functionname.clone(), oldfunctionname.clone(), args, functionargs, state, idmap, addressmap, currentid);
                     function_elements_execute(functionname.clone(),unbox(ele.clone()),state,idmap,addressmap,currentid);
                 },
                 _ => panic!("Function stored incorrectly in mem: function_arguments_call_execute"),
@@ -845,27 +857,52 @@ fn function_arguments_call_execute(functionname: Box<String>, oldfunctionname: B
 
 //Declares variables sent to a function through call and adds them to memeory. Handles nestled function calls.
 //Still incorrect names, names in args are the ones used when CALLING. Need to add function arguments as input for function.
-//This will ensure that the order of adding variables is correct when stepping throough args.
-fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) {
+//This will ensure that the order of adding variables is correct when stepping through args.
+fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>, fuargs: Box<function_arguments>, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) {
+    println!("New func name: {:?}",unbox(functionname.clone()));
+    println!("Old func name: {:?}",unbox(oldfunctionname.clone()));
     if unbox(functionname.clone()) == "main" { //If we are in main, declare no variables.
         return;
     }
+    println!("Passed check");
     let temp: function_arguments_call = unbox(args.clone());
     match temp {
         function_arguments_call::arg_call_list(a1,a2) => {
-            let _leftSide = function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),a1,state,idmap,addressmap,currentid);
-            let _rightSide = function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),a2,state,idmap,addressmap,currentid);
+            let (varl, far) = match unbox(fuargs) {
+                function_arguments::arg_list(le,ri) => {(le,ri)},
+                _ => return panic!("Too many inputs given to function {:?} : function_arguments_call_declare",functionname.clone()),
+            };
+            let fal = Box::new(function_arguments::var(varl));
+            let _leftSide = function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),a1,fal,state,idmap,addressmap,currentid);
+            let _rightSide = function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),a2,far,state,idmap,addressmap,currentid);
         },
         function_arguments_call::bx(bo) => {
+            let functionargs = match unbox(fuargs.clone()) {
+                function_arguments::arg_list(le,ri) => {return panic!("jada")},
+                function_arguments::var(v) => {v},
+            };
+            let (varname,vartype) = match functionargs {
+                variable::parameters(n,t,_v) => {(n,t)},
+                variable::name(n) => {(n,Type::unknown(0))},
+            };
             let unb = unbox(bo);
             match unb {
                 List::var(v) => {
-                    //Add here
+                    let newargs = Box::new(function_arguments_call::variable(Box::new(v)));
+                    function_arguments_call_declare(functionname.clone(), oldfunctionname.clone(), newargs, fuargs.clone(), state, idmap, addressmap, currentid);
                 },
                 _ => (),
             };
         },
         function_arguments_call::function(fu) => {
+            let functionargs = match unbox(fuargs.clone()) {
+                function_arguments::arg_list(le,ri) => {panic!("Too few inputs given to function {:?} : function_arguments_call_declare",functionname.clone())},
+                function_arguments::var(v) => {v},
+            };
+            let (varname,vartype) = match functionargs {
+                variable::parameters(n,t,_v) => {(n,t)},
+                variable::name(n) => {(n,Type::unknown(0))},
+            };
             match unbox(fu) {
                 function::parameters_call(na, ar) => {
                     //let st2: &mut HashMap<String, hashstate> = &mut state.clone();
@@ -883,26 +920,11 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
                                         functionstate::Returned(v) => {
                                             match unbox(v.clone()) {
                                                 hashdata::address(a) => {
-                                                    match *fu.clone() {
-                                                        function::parameters_def(_na,ar,_ty,_ele) => {
-                                                            match unbox(ar) {
-                                                                function_arguments::var(va) => {
-                                                                    match va { //Needed to get name given in function that called.
-                                                                        variable::parameters(n,_t,_v) => {
-                                                                            let varToAdd = hashvariable::var(unbox(n),a);
-                                                                            addLocalVariable(unbox(functionname.clone()), varToAdd, state);
-                                                                        },
-                                                                        variable::name(n) => {
-                                                                            let varToAdd = hashvariable::var(unbox(n),a);
-                                                                            addLocalVariable(unbox(functionname.clone()), varToAdd, state);
-                                                                        },
-                                                                    };
-                                                                },
-                                                                _ => {}, //Add here to work with list of args
-                                                            };
-                                                        },
-                                                        _ => panic!("Function not store correctly: function_arguments_call_declare"),
-                                                    };
+                                                    let ffrommem = getFromMemory(a, addressmap);
+                                                    let hdata = getFromAddressHashdata(ffrommem, addressmap);
+                                                    let ad = addToMemory(0, hdata, idmap, addressmap, currentid);
+                                                    let varToAdd = hashvariable::var(unbox(varname),ad);
+                                                    addLocalVariable(unbox(functionname.clone()), varToAdd, state);
                                                 },
                                                 _ => panic!("Previous function call returned nothing!: function_arguments_call_declare"),
                                             }
@@ -922,19 +944,27 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
             }
         },
         function_arguments_call::variable(va) => {
+            let functionargs = match unbox(fuargs.clone()) {
+                function_arguments::arg_list(le,ri) => {panic!("Too many inputs given to function {:?} : function_arguments_call_declare",functionname.clone())},
+                function_arguments::var(v) => {v},
+            };
+            let (varname,vartype) = match functionargs {
+                variable::parameters(n,t,_v) => {(n,t)},
+                variable::name(n) => {(n,Type::unknown(0))},
+            };
             match unbox(va.clone()) {
                 variable::parameters(na,_ty,val) => {
                     match unbox(val) {
                         variable_value::Boolean(b) => {
                             let temp = hashdata::valuebool(b);
                             let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                            let temp2 = hashvariable::var(unbox(na),addressOfTemp);
+                            let temp2 = hashvariable::var(unbox(varname),addressOfTemp);
                             addLocalVariable(unbox(functionname.clone()), temp2, state);
                         },
                         variable_value::Number(n) => {
                             let temp = hashdata::valuei32(n);
                             let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                            let temp2 = hashvariable::var(unbox(na),addressOfTemp);
+                            let temp2 = hashvariable::var(unbox(varname),addressOfTemp);
                             addLocalVariable(unbox(functionname.clone()), temp2, state);
                         },
                         _ => panic!("temp"), //Might have to include more cases for variable_value here if needed. But most should be removed by eval()
@@ -942,10 +972,15 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
                 },
                 variable::name(n) => {
                     let vnam = unbox(n);
-                    let vval = var_execute(oldfunctionname.clone(), unbox(va.clone()), state, idmap, addressmap, currentid);
-                    let hdata = hashdata::valuei32(vval);
+                    let hvar = getLocalVariable(unbox(oldfunctionname.clone()), vnam.clone(), state);
+                    let oldaddress = match hvar {
+                        hashvariable::var(oldna, oldad) => {oldad},
+                        _ => return panic!("No variable named {:?} in function {:?} found: function_arguments_call_declare",vnam.clone(),oldfunctionname.clone()),
+                    };
+                    let ffrommem = getFromMemory(oldaddress, addressmap);
+                    let hdata = getFromAddressHashdata(ffrommem, addressmap);
                     let ad = addToMemory(0, hdata, idmap, addressmap, currentid);
-                    let varToAdd = hashvariable::var(vnam,ad);
+                    let varToAdd = hashvariable::var(unbox(varname),ad);
                     addLocalVariable(unbox(functionname.clone()), varToAdd, state);
                     //Adds with incorrect name and real value instead of address. FIX LATER -----------------------------------------------------------------------------------------------------
                 },

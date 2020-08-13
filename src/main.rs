@@ -46,20 +46,13 @@ fn main() {
     let x = parserun(
         "fn getfunkbody(input: i32) -> i32{
             let z:i32 = 9;
-            let nvar:i32 = input;
+            return input;
         }
 
         fn main(input: i32) -> i32{
-            let testvar:i32 = 5;
-            getfunkbody(testvar,5,6);
-            let testvar2:i32 = 6;
-            let testvar3:i32 = 3;
-            return 3+test(1);
-
-        }
-        
-        fn test(input: i32) -> i32{
-            let x:i32 = 5;
+            let testVar:i32 = 5;
+            getfunkbody(testVar);
+            let y:i32 = 1;
 
         }
         "
@@ -83,7 +76,7 @@ fn main() {
     // let k = 9;
     // if true {
     // if jdad {
-    // let banna = false;bad omen drums fc
+    // let banna = false;
     // let apple = true;
     // };
     // let i = 89;
@@ -104,5 +97,8 @@ fn parserun(st : &str) {
     typechecker::typechecker(parsed.clone());
     let result = interpreter::execute(parsed.clone());
 
-    println!("Program state \n {:?}",result);
+    let iter = result.iter();
+    for line in iter {
+        println!("Program state \n\n {:?}",line);  
+    }
 }

@@ -30,6 +30,7 @@ use crate::enums::op::{add, div, mult, res, sub, wrong};
 use crate::enums::variable_value::{boxs, Boolean, Nil, Number};
 use crate::enums::variable::{name, parameters};
 
+
 pub fn program_parser(input: &str)-> Program{
     let (string, result) = match many0(
     preceded(
@@ -155,6 +156,7 @@ fn variable_expression_parser(input: &str) -> IResult<&str, &str> {
     Ok((input, pibval))
 }
 
+//parses one or more digits 
 fn parser2(input: &str) -> IResult<&str, &str> {
     //println!("Entered parser2");
     //println!("with input: {:?}",&input);
@@ -190,6 +192,7 @@ fn tag_semi_col(input: &str) -> IResult<&str, &str> {
 // }
 // }
 
+// Parses everything right of a "=" so in "x:i32 = 3+x+(y(1)+8)" it parses the "3+x+(y(1)+8)" part
 pub fn put_in_box(input: &str) -> IResult<&str, expr> {
     // ////println!("inputTTTTT: {:?}", input);
     //println!("Enterd Put In BOX");
@@ -387,6 +390,8 @@ fn finalparser(input: &str) -> (&str, &str) {
 // parser(input)
 // }
 
+//Parses every mathematical operator, and returns it as an IResult type
+
 use std;
 fn operator(input: &str) -> IResult<&str, op> {
     //println!("Entered operator");
@@ -430,6 +435,7 @@ fn operator(input: &str) -> IResult<&str, op> {
     // }
 }
 
+// gets everything in in between matched parathesis both between "{}" and "()"
 fn get_parentheses_content(input: &str) -> IResult<&str, &str> {
     //println!("Entered get_parathesis content");
     //println!("with input: {:?}",&input);
@@ -442,6 +448,8 @@ fn get_parentheses_content(input: &str) -> IResult<&str, &str> {
     )(input)
 }
 
+//Parses all function parameters, that can be supplied in a function call.
+
 fn function_call_parentheses_parser(input: &str) -> IResult<&str, Vec<&str>> {
     //println!("Entered function_call_paranthesis_parser");
     //println!("with input: {:?}",&input);
@@ -452,6 +460,7 @@ fn function_call_parentheses_parser(input: &str) -> IResult<&str, Vec<&str>> {
     x
 }
 
+// Calls function_call_parenthesis_parser and matches it so that error dont cause problems
 fn function_call_parentheses_parser_final(input: &str) -> Box<function_arguments_call> {
     //println!("Entered function_call_paranthesis_parser_final");
     //println!("with input: {:?}",&input);
@@ -462,6 +471,8 @@ fn function_call_parentheses_parser_final(input: &str) -> Box<function_arguments
     // ////println!("reststring, values: {:?}", (&reststring, &values));
     func_var(values, reststring)
 }
+
+//Parses the arguments of a newly defined function, which uses the function_call_parentheses_parser to match two values.
 
 fn function_def_parentheses_parser_final(input: &str) -> Box<function_arguments> {
     //println!("Entered function_def_paranthesis_parser_final");
@@ -474,6 +485,7 @@ fn function_def_parentheses_parser_final(input: &str) -> Box<function_arguments>
     func_variable_defin(values, reststring)
 }
 
+//parses the arguments to a funtion call so in "function(var, func(3)+var2, 5)"" it parses the expresions "var", "func(3)+var2" and "5"  
 fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_call> {
     //println!("Entered funcvar");
     println!("with input: {:?}",(&input, &reststring));
@@ -507,6 +519,7 @@ fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_ca
     return Box::new(list);
 }
 
+//parses the function argumnents when defiining a function so in "fn(input:i32, input2:i32)=>i32{...}"" it parses "input:i32" and "input2:i32" 
 fn func_variable_defin(mut input_vec: Vec<&str>, reststring: &str) -> Box<function_arguments> {
     //println!("Entered func_variable_defin");
     //println!("with input: {:?}",(&input_vec, &reststring));
@@ -546,10 +559,11 @@ fn func_variable_defin(mut input_vec: Vec<&str>, reststring: &str) -> Box<functi
         func_variable_defin(input_vec, reststring),
     ));
 }
-//needs fixing for neseted ";" and "{}"
+//needs fixing for nested ";" and "{}"(cant remember if true anymore)
+//parses anythning in between curlybrackets "{}" in function definfitions and in if statements and in while statements  
 fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
-    //println!("Entered get_curl_brack_body");
-    //println!("with input: {:?}",&input);
+    println!("Entered get_curl_brack_body");
+    println!("with input: {:?}",&input);
     let z: u8 = 0;
     delimited(
         preceded(multispace0, tag("{")),
@@ -568,6 +582,7 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
     )(input)
 }
 
+//parses everything in betweeen parenthesis ()
 fn get_parentheses_body(input: &str) -> IResult<&str, expr> {
     //println!("Entered get_paranthesis_Body");
     //println!("with input: {:?}",&input);
@@ -611,7 +626,7 @@ fn get_parentheses_body(input: &str) -> IResult<&str, expr> {
     Ok((input, exprval))
 }
 
-// parses what the functions return type
+// parses the return type of a newly defined function
 fn return_parser(input: &str) -> IResult<&str, Type> {
     //println!("Entered return_parser");
     //println!("with input: {:?}",&input);
@@ -734,13 +749,14 @@ fn function_parser(input: &str) -> IResult<&str, List> {
 
 //Parses the condition, and the body of if statements and while loops and adds them to the tree
 fn if_parser(input: &str) -> IResult<&str, expr> {
-    //println!("Entered if_parser");
-    //println!("with input: {:?}",&input);
+    println!("Entered if_parser");
+    println!("with input: {:?}",&input);
     let (input, _) = preceded(multispace0, tag("if"))(input)?;
 
     let (input, paran_cont) = get_parentheses_content(input)?;
     let (_, pibresult) = put_in_box(paran_cont)?;
     let (input, curl_para_cont) = get_curl_brack_body(input)?;
+    println!("if get curl brack body result {:?}", (&input, &curl_para_cont));
     let function_elements = function_body_elements(curl_para_cont);
 
     let pibresult = match pibresult {
@@ -775,7 +791,7 @@ fn while_parser(input: &str) -> IResult<&str, expr> {
 
     Ok((input, expr::while_enum(list)))
 }
-
+//Parses a return statement in a function, and returns it as an IResult.
 fn function_call_return_parser(input: &str) -> IResult<&str,expr>{
     let (input,_) = preceded(multispace0,tag("return"))(input)?;
     //println!( "After tag {:?}", &input);
