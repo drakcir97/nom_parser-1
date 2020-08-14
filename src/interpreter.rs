@@ -110,22 +110,16 @@ pub fn execute(pg: Program) -> Vec<(String, hashstate)> {
 
 // For each different type, such as loop or if statements, just hardcode that behavior. 
 // Such as if statement in code using the given condition.
-fn execute_List(functionname: String, ls: List, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) -> i32{
+fn execute_List(functionname: String, ls: List, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) -> List{
     match ls{
         List::paran(v) => {return execute_List(functionname.clone(), unbox(v), state, idmap, addressmap, currentid)},
         List::Cons(v,w,x) => {return cons_execute(functionname.clone(),v,w,x,state,idmap,addressmap,currentid)},
-        List::Num(v) => {return v},
-        List::boolean(v)=>{
-            if v == true {
-                return 1;
-            } else {
-                return 0;
-            }
-        },
+        List::Num(v) => {return ls},
+        List::boolean(v)=>{return ls},
         List::func(fu) => {
             function_execute(functionname.clone(), fu.clone(), state, idmap, addressmap, currentid);
             let _func_var = match fu.clone(){
-                function::parameters_def(_l,_m,_n,_o)=>{return 0}, 
+                function::parameters_def(_l,_m,_n,_o)=>{return List::Num(0)}, 
                 function::parameters_call(v,_w)=>{
                     let fnst = getState(unbox(v),state);
                     match fnst {
@@ -134,26 +128,20 @@ fn execute_List(functionname: String, ls: List, state: &mut HashMap<String, hash
                                 functionstate::Returned(v) => {
                                     let data = getFromAddressHashdata(unbox(v), addressmap);
                                     match data {
-                                        hashdata::valuei32(a) => {a},
-                                        hashdata::valuebool(a) => {
-                                            if a == true {
-                                                return 1;
-                                            } else {
-                                                return 0;
-                                            };
-                                        }
-                                        _ => {return 0}
+                                        hashdata::valuei32(a) => {return List::Num(a)},
+                                        hashdata::valuebool(a) => {return List::boolean(a)},
+                                        _ => {return List::Num(0)},
                                     };
                                 },
-                                _ => {return 0}
+                                _ => {return List::Num(0)}
                             }
                         },
-                        _ => {return 0}
+                        _ => {return List::Num(0)}
                     }
                 },
-                _ => {return 0}
+                _ => {return List::Num(0)}
             };
-            return 0;
+            return List::Num(0);
         },
         List::var(v) => {return var_execute(Box::new(functionname.clone()), v, state, idmap, addressmap, currentid)},
         _ => panic!("Something went wrong: execute_List"),
@@ -508,43 +496,227 @@ fn eval(ls: List) -> List {
 
 //Takes a deconstructed List::Cons, both sides and operator are different parameters. 
 //Executes both sides independantly and summarizes them according to operand.
-fn cons_execute(functionname: String, l: Box<List>, oper: op ,r:  Box<List>, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32)-> i32{
+fn cons_execute(functionname: String, l: Box<List>, oper: op ,r:  Box<List>, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32)-> List{
     let expr = match oper{
         op::add => {
-            let val: List = unbox(l);
-            let valr: List = unbox(r);
-            execute_List(functionname.clone(), val, state, idmap, addressmap, currentid) + execute_List(functionname.clone(), valr, state, idmap, addressmap, currentid)
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            return List::Num(vall+valr);
         },
 
         op::sub => {
-            let val: List = unbox(l);
-            let valr: List = unbox(r);
-            execute_List(functionname.clone(), val, state, idmap, addressmap, currentid) - execute_List(functionname.clone(), valr, state, idmap, addressmap, currentid)
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            return List::Num(vall-valr);
         },
 
         op::div => {
-            let val: List = unbox(l);
-            let valr: List = unbox(r);
-            execute_List(functionname.clone(), val, state, idmap, addressmap, currentid) / execute_List(functionname.clone(), valr, state, idmap, addressmap, currentid)
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            return List::Num(vall/valr);
         },
 
         op::res => {
-            let val: List = unbox(l);
-            let valr: List = unbox(r);
-            execute_List(functionname.clone(), val, state, idmap, addressmap, currentid) % execute_List(functionname.clone(), valr, state, idmap, addressmap, currentid)
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            return List::Num(vall%valr);
         },
         op::mult => {
-            let val: List = unbox(l);
-            let valr: List = unbox(r);
-            execute_List(functionname.clone(), val, state, idmap, addressmap, currentid) * execute_List(functionname.clone(), valr, state, idmap, addressmap, currentid)
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            return List::Num(vall*valr);
         },
-
+        op::less => {
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            if vall < valr {
+                return List::Num(1);
+            }
+            return List::Num(0);
+        },
+        op::greater => {
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            if vall > valr {
+                return List::Num(1);
+            }
+            return List::Num(0);
+        },
+        op::lessEqual => {
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            if vall <= valr {
+                return List::Num(1);
+            }
+            return List::Num(0);
+        },
+        op::greatEqual => {
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            if vall >= valr {
+                return List::Num(1);
+            }
+            return List::Num(0);
+        },
+        op::and => {
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::boolean(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::boolean(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            return List::boolean(vall && valr);
+        },
+        op::or => {
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::boolean(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::boolean(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            return List::boolean(vall || valr);
+        },
         
 
         _ => panic!("Operand not supported: cons_execute")
     };
 
-    expr
 }
 
 fn unbox<T>(value: Box<T>) -> T {
@@ -573,7 +745,7 @@ fn function_execute(functionname: String, func_var: function, state: &mut HashMa
 }
 
 //Executes variables, if it doesn't exist, add to mem and to local vars. Otherwise replace value at address.
-fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) -> i32{
+fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) -> List{
     match variable_var{
         variable::parameters(na,_ty,val) => {
             let testIfExist = getLocalVariable(unbox(functionname.clone()), unbox(na.clone()), state);
@@ -645,7 +817,7 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
                     };
                 },
             };
-            return 0;
+            return List::Num(0);
         },
         variable::name(v)=>{ // Access local var with same name and return it.
             let lvar = getLocalVariable(unbox(functionname), unbox(v.clone()), state);
@@ -654,14 +826,9 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
                     let mem = getFromMemory(a,addressmap);
                     let value = getFromAddressHashdata(mem, addressmap);
                     match value {
-                        hashdata::valuei32(va) => {return va},
-                        hashdata::valuebool(va) => {
-                            if va == true {
-                                return 1;
-                            }
-                            return 0;
-                        },
-                        _ => {return 0},
+                        hashdata::valuei32(va) => {return List::Num(va);},
+                        hashdata::valuebool(va) => {return List::boolean(va);},
+                        _ => {return List::Num(0);},
                     }
 
                 },
@@ -678,8 +845,7 @@ fn if_execute(functionname: Box<String>, if_e: if_enum, state: &mut HashMap<Stri
     let (ifst, if_body) = match if_e{
         if_enum::condition(v,w)=>(v,w)
     };
-    let if_statement = unbox(ifst);
-    if execute_List(unbox(functionname.clone()), if_statement.clone(), state, idmap, addressmap, currentid) > 0 {
+    if cons_execute(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0)), state, idmap, addressmap, currentid)  == List::Num(0) {
         function_elements_execute(functionname.clone(), unbox(if_body), state, idmap, addressmap, currentid);
         
     }
@@ -693,15 +859,13 @@ fn while_execute(functionname: Box<String>, while_e: while_enum, state: &mut Has
     let (while_statement, while_body) =  match while_e{
         while_enum::condition(v,w)=>(v,w),
     };
-    let cond = unbox(while_statement);
     changeFunctionState(unbox(functionname.clone()), functionstate::Looping, state);
-    while execute_List(unbox(functionname.clone()), cond.clone(), state, idmap, addressmap, currentid) > 0 {
+    while cons_execute(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0)), state, idmap, addressmap, currentid) == List::Num(0) {
         function_elements_execute(functionname.clone(), unbox(while_body.clone()), state, idmap, addressmap, currentid);
     }
     changeFunctionState(unbox(functionname), functionstate::Running, state);
     //return res;
 }
-
 
 //Execute return statements
 fn return_execute(functionname: Box<String>, var_val: variable_value, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) {
@@ -760,6 +924,20 @@ fn return_execute(functionname: Box<String>, var_val: variable_value, state: &mu
                         List::var(v) => {
                             let varval = variable_value::variable(Box::new(v));
                             return_execute(functionname.clone(), varval, state, idmap, addressmap, currentid);
+                        },
+                        List::Cons(bl, opr, br) => {
+                            let consval = cons_execute(unbox(functionname.clone()), bl, opr, br, state, idmap, addressmap, currentid);
+                            let hashdata_ret = match consval {
+                                List::Num(n) => {
+                                    hashdata::valuei32(n)
+                                },
+                                List::boolean(n) => {
+                                    hashdata::valuebool(n)
+                                },
+                                _ => panic!(""),
+                            }; 
+                            let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
+                            changeState(unbox(functionname.clone()),temp,state);
                         },
                         _ => panic!("Return does not support this type: return_execute"),
                     }

@@ -571,10 +571,10 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
             multispace0,
             // alt((test_loop, terminated(take_until(";"), tag(";")))),
             alt((
-                if_parser,
                 variable_parser,
                 put_in_box,
                 function_call_return_parser,
+                if_parser,
                 //function_parser,
             )),
         )),
@@ -647,8 +647,8 @@ fn return_parser(input: &str) -> IResult<&str, Type> {
 
 //parses function body 
 fn function_body_elements(mut input_Vec: Vec<expr>) -> (Box<function_elements>) {
-    //println!("Entered function_body_elements");
-    //println!("with input: {:?}",&input_Vec);
+    println!("Entered function_body_elements");
+    println!("with input: {:?}",&input_Vec);
     // //println!("input_vec: {:?}", input_Vec);
     let input_expr: expr = input_Vec.remove(0);
     let input_fe = match input_expr {
@@ -659,6 +659,7 @@ fn function_body_elements(mut input_Vec: Vec<expr>) -> (Box<function_elements>) 
         expr::while_enum(b) => function_elements::while_enum(b),
         expr::return_val(b) => function_elements::return_val(b),
     };
+    println!("inputVec {:?}", input_Vec)
     if input_Vec.len() == 0 {
         return Box::new(input_fe);
     }
@@ -758,6 +759,7 @@ fn if_parser(input: &str) -> IResult<&str, expr> {
     let (input, curl_para_cont) = get_curl_brack_body(input)?;
     println!("if get curl brack body result {:?}", (&input, &curl_para_cont));
     let function_elements = function_body_elements(curl_para_cont);
+    println!("if function_body_elements result {:?}",function_elements);
 
     let pibresult = match pibresult {
         expr::list(a) => a,
