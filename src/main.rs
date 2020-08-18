@@ -50,11 +50,12 @@ fn main() {
         }
 
         fn main(input: i32) -> i32{
-            let testVar:i32 = 5;
+            let testVar:bool = 5;
+            let testVar:i32 = 3;
             getfunkbody(testVar);
-            let y:i32 = 1;
-            if(7>2){
-                let z:i32 = 5;
+            let y:i32 = testVar;
+            while (y>2){
+                let y: i32 = y-1;
             }
         }
         "

@@ -562,8 +562,8 @@ fn func_variable_defin(mut input_vec: Vec<&str>, reststring: &str) -> Box<functi
 //needs fixing for nested ";" and "{}"(cant remember if true anymore)
 //parses anythning in between curlybrackets "{}" in function definfitions and in if statements and in while statements  
 fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
-    println!("Entered get_curl_brack_body");
-    println!("with input: {:?}",&input);
+    // println!("Entered get_curl_brack_body");
+    // println!("with input: {:?}",&input);
     let z: u8 = 0;
     delimited(
         preceded(multispace0, tag("{")),
@@ -575,6 +575,7 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
                 put_in_box,
                 function_call_return_parser,
                 if_parser,
+                while_parser,
                 //function_parser,
             )),
         )),
@@ -647,8 +648,8 @@ fn return_parser(input: &str) -> IResult<&str, Type> {
 
 //parses function body 
 fn function_body_elements(mut input_Vec: Vec<expr>) -> (Box<function_elements>) {
-    println!("Entered function_body_elements");
-    println!("with input: {:?}",&input_Vec);
+    // println!("Entered function_body_elements");
+    // println!("with input: {:?}",&input_Vec);
     // //println!("input_vec: {:?}", input_Vec);
     let input_expr: expr = input_Vec.remove(0);
     let input_fe = match input_expr {
@@ -659,7 +660,7 @@ fn function_body_elements(mut input_Vec: Vec<expr>) -> (Box<function_elements>) 
         expr::while_enum(b) => function_elements::while_enum(b),
         expr::return_val(b) => function_elements::return_val(b),
     };
-    println!("inputVec {:?}", input_Vec)
+    // println!("inputVec {:?}", input_Vec);
     if input_Vec.len() == 0 {
         return Box::new(input_fe);
     }
@@ -750,16 +751,16 @@ fn function_parser(input: &str) -> IResult<&str, List> {
 
 //Parses the condition, and the body of if statements and while loops and adds them to the tree
 fn if_parser(input: &str) -> IResult<&str, expr> {
-    println!("Entered if_parser");
-    println!("with input: {:?}",&input);
+    // println!("Entered if_parser");
+    // println!("with input: {:?}",&input);
     let (input, _) = preceded(multispace0, tag("if"))(input)?;
 
     let (input, paran_cont) = get_parentheses_content(input)?;
     let (_, pibresult) = put_in_box(paran_cont)?;
     let (input, curl_para_cont) = get_curl_brack_body(input)?;
-    println!("if get curl brack body result {:?}", (&input, &curl_para_cont));
+    // println!("if get curl brack body result {:?}", (&input, &curl_para_cont));
     let function_elements = function_body_elements(curl_para_cont);
-    println!("if function_body_elements result {:?}",function_elements);
+    // println!("if function_body_elements result {:?}",function_elements);
 
     let pibresult = match pibresult {
         expr::list(a) => a,
@@ -767,8 +768,7 @@ fn if_parser(input: &str) -> IResult<&str, expr> {
     };
 
     let list = if_enum::condition(Box::new(pibresult), function_elements);
-    let (input, _) = tag(";")(input)?;
-
+    // let (input, _) = preceded(multispace0, tag(";"))(input)?;
     Ok((input, expr::if_enum(list)))
 }
 
@@ -789,7 +789,7 @@ fn while_parser(input: &str) -> IResult<&str, expr> {
     };
 
     let list = while_enum::condition(Box::new(pibresult), function_elements);
-    let (input, _) = tag(";")(input)?;
+    // let (input, _) = tag(";")(input)?;
 
     Ok((input, expr::while_enum(list)))
 }
