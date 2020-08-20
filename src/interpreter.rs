@@ -757,7 +757,7 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
                         },
                         variable_value::boxs(b) => {
                             let ls = unbox(b);
-                            match ls {
+                            match ls.clone() {
                                 List::Num(n) => {
                                     if ty != Type::Integer {
                                         panic!("Type mismatch in var: var_execute")
@@ -812,6 +812,26 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
                                         _ => (),
                                     };
                                 },
+                                List::func(fu) => {
+                                    let val = execute_List(unbox(functionname.clone()), ls.clone(), state, idmap, addressmap, currentid);
+                                    match val.clone() {
+                                        List::Num(n) => {
+                                            if ty != Type::Integer {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuei32(n);
+                                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                        },
+                                        List::boolean(b) => {
+                                            if ty != Type::boolean {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuebool(b);
+                                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                        },
+                                        _ => (),
+                                    };
+                                },
                                 _ => (),
                             }
                         },
@@ -847,7 +867,7 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
                         },
                         variable_value::boxs(b) => {
                             let ls = unbox(b);
-                            match ls {
+                            match ls.clone() {
                                 List::Num(n) => {
                                     if ty != Type::Integer {
                                         panic!("Type mismatch in var: var_execute")
@@ -904,6 +924,36 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
                                 },
                                 List::Cons(lli,op,rli) => {
                                     let val = cons_execute(unbox(functionname.clone()), lli, op, rli, state, idmap, addressmap, currentid);
+                                    match val.clone() {
+                                        List::Num(n) => {
+                                            if ty != Type::Integer {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuei32(n);
+                                            let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
+                                            let temp2 = hashvariable::var(unbox(na),addressOfTemp);
+                                            let resadd = addLocalVariable(unbox(functionname), temp2, state);
+                                            if resadd == false {
+                                                return panic!("Adding local variable failed: var_execute");
+                                            }
+                                        },
+                                        List::boolean(b) => {
+                                            if ty != Type::boolean {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuebool(b);
+                                            let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
+                                            let temp2 = hashvariable::var(unbox(na),addressOfTemp);
+                                            let resadd = addLocalVariable(unbox(functionname), temp2, state);
+                                            if resadd == false {
+                                                return panic!("Adding local variable failed: var_execute");
+                                            }
+                                        },
+                                        _ => (),
+                                    };
+                                },
+                                List::func(fu) => {
+                                    let val = execute_List(unbox(functionname.clone()), ls.clone(), state, idmap, addressmap, currentid);
                                     match val.clone() {
                                         List::Num(n) => {
                                             if ty != Type::Integer {
@@ -1060,16 +1110,12 @@ fn return_execute(functionname: Box<String>, var_val: variable_value, state: &mu
                             changeState(unbox(functionname.clone()),temp,state);
                         },
                         List::boolean(b) => {
-                            let temp = hashdata::valuebool(b);
-                            let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                            let hashdata_ret = hashdata::address(addressOfTemp);
+                            let hashdata_ret = hashdata::valuebool(b);
                             let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
                             changeState(unbox(functionname.clone()),temp,state);
                         },
                         List::Num(n) => {
-                            let temp = hashdata::valuei32(n);
-                            let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                            let hashdata_ret = hashdata::address(addressOfTemp);
+                            let hashdata_ret = hashdata::valuei32(n);
                             let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
                             changeState(unbox(functionname.clone()),temp,state);
                         },

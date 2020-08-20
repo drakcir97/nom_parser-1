@@ -44,7 +44,11 @@ fn main() {
     // );
 
     let x = parserun(
-        "fn getfunkbody(input: i32) -> i32{
+        "fn asd(in: i32) -> i32{
+            return 1;
+        }
+        
+        fn getfunkbody(input: i32) -> i32{
             let z:i32 = 9;
             return input+1;
         }
@@ -52,7 +56,7 @@ fn main() {
         fn main(input: i32) -> i32{
             let testInt:i32 = 1;
             let testVar:bool = 1 > 4;
-            getfunkbody(testInt);
+            let test:i32 = asd(testInt);
             let y:i32 = 5;
             while (y>2){
                 let y: i32 = y-1;
