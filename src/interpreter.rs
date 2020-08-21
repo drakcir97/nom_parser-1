@@ -33,52 +33,6 @@ use crate::enums::op::{add, div, mult, res, sub, wrong};
 use crate::enums::variable_value::{boxs, Boolean, Nil, Number};
 use crate::enums::variable::{name, parameters};
 
-// -------------------------------------------------------------------------------------------- \\
-//Hashmap for containing the state we are currently in.
-//static mut state: HashMap<&str, hashstate> = HashMap::new(); //Internal types are just a guess.
-
-// Example from lession
-//static mut idmap: HashMap<i32,i32> = HashMap::new();               //  id      -> address
-//static mut addressmap: HashMap<i32, hashdata> = HashMap::new();    //  address -> hashdata::valuei32,valuebool
-                                                                            //    hashdata::address
-
-//static mut currentid: i32 = 0; //Incrementer for idmap, bad fix for now
-// Intepreter enums
-// State for function, contains whether it's running or simply declared. Contains a vector of hashvariable. Last i32 is for line currently running.
-// #[derive(Debug,Clone, PartialEq)]
-// enum hashstate {
-//     state(Box<functionstate>,Box<Vec<hashvariable>>,Box<function>,i32),
-//     Nil,
-// }
-
-// //First one is variable name, last one is the address in addressmap and idmap
-// #[derive(Debug,Clone, PartialEq)]
-// enum hashvariable {
-//     var(String,i32),
-//     Nil,
-// }
-
-// //The data located in addressmap. Value refers to a real value, address just points to another address.
-// #[derive(Debug,Clone, PartialEq)]
-// enum hashdata {
-//     valuei32(i32),
-//     valuebool(bool),
-//     address(i32),
-// }
-//     //                match rs {
-//     //                    List::Num(nr) => {
-
-// //The different states a function can be in.
-// #[derive(Debug,Clone, PartialEq)]
-// enum functionstate {
-//     Running,
-//     Stopped,
-//     Declared,
-//     Looping,
-//     Calling,
-//     Returned(Box<hashdata>),
-// }
-
 pub fn execute(pg: Program) -> Vec<(String, hashstate)> {
     let (nm, statements) = match pg {
         Program::pgr(v,w) => (v,w),
@@ -1168,10 +1122,6 @@ fn function_elements_execute(functionname: Box<String>, fe: function_elements, s
     }
 }
 
-// fn paran_execute(paran: Box<List>){
-//     let paran = execute(*paran);
-// }
-
 //Execute a function call with args.
 fn paramcall_execute(functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32){
     //Volvo 740 med svetsad diff e gött
@@ -1216,12 +1166,9 @@ fn function_arguments_call_execute(functionname: Box<String>, oldfunctionname: B
 //Declares variables sent to a function through call and adds them to memeory. Handles nestled function calls.
 //Takes function args to ensure that names and order is correct when declaring variables.
 fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>, fuargs: Box<function_arguments>, state: &mut HashMap<String, hashstate>, idmap: &mut HashMap<i32,i32>,addressmap: &mut HashMap<i32, hashdata>, currentid: &mut i32) {
-    //println!("New func name: {:?}",unbox(functionname.clone()));
-    //println!("Old func name: {:?}",unbox(oldfunctionname.clone()));
     if unbox(functionname.clone()) == "main" { //If we are in main, declare no variables.
         return;
     }
-    //println!("Passed check");
     let temp: function_arguments_call = unbox(args.clone());
     match temp {
         function_arguments_call::arg_call_list(a1,a2) => {
@@ -1352,7 +1299,7 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
                             let temp2 = hashvariable::var(unbox(varname),addressOfTemp);
                             addLocalVariable(unbox(functionname.clone()), temp2, state);
                         },
-                        _ => panic!("temp"), //Might have to include more cases for variable_value here if needed. But most should be removed by eval()
+                        _ => panic!("temp"), //Might have to include more cases for variable_value here if needed.
                     };
                 },
                 variable::name(n) => {
@@ -1378,175 +1325,4 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
     }
 }
 
-//Takes a struct and calculates total value, aka evaluates them into a single value. See the different operations supported in op.
-//UNUSED
-fn eval(ls: List) -> List {
-    match ls {
-        List::Num(n) => List::Num(n),
-        List::boolean(b) => List::boolean(b),
-        List::Cons(l,o,r) => {
-            let ls = eval(*l);
-            let rs = eval(*r);
-            match ls {
-                List::Num(nl) => {
-                    match rs {
-                        List::Num(nr) => {
-                            match o {
-                                op::add => return List::Num(nl+nr),
-                                op::sub => return List::Num(nl-nr),
-                                op::div => return List::Num(nl/nr),
-                                op::mult => return List::Num(nl*nr),
-                                op::res => return List::Num(nl^nr),
-                                _ => panic!("Incorrect operand : eval"),
-                            };
-                        },
-                        _ => panic!("Type mismatch: eval"),
-                    };
-                },
-                List::boolean(bl) => {
-                    match rs {
-                        List::boolean(br) => {
-                            match o {
-                                op::and => return List::boolean(bl&&br),
-                                op::or => return List::boolean(bl||br),
-                                _ => panic!("Wrong bool: eval"),
-                            };
-                        },
-                        _ => panic!("Type mismatch: eval"),
-                    };
-                },
-                _ => return ls,
-                
-            };
-        },
-        _ => ls,
-    }    
-}
-
-fn main() {
-    // //let x = execute(List::Cons(Box::new(List::paran(Box::new(List::Cons(Box::new(Num(3)), mult, Box::new(Num(7)))))), add, Box::new(Num(8)))); //(3*7)+8
-    // //let x = eval(List::Cons(Box::new(Num(1)),op::add, Box::new(Num(2))));
-    // let x = eval(List::Cons(Box::new(Num(4)), mult, Box::new((Cons(Box::new(Num(10)), mult, Box::new(Cons(Box::new(Num(1000)), div, Box::new(Cons(Box::new(Num(3)), mult, Box::new(Cons(Box::new(Num(8)), add, Box::new(Num(7)))))))))))));
-    // //let x = execute(List::Cons(Box::new(Num(3)), mult, Box::new(Cons(Box::new(Num(8)), add, Box::new(Num(7))))));
-    // println!("res: {:?}", x);
-
-    // let y = eval(List::Cons(Box::new(List::boolean(true)), op::and, Box::new(List::boolean(true))));
-    // println!("res2: {:?}", y);
-
-    // let mut state: HashMap<String, hashstate> = HashMap::new(); //Internal types are just a guess.
-
-    // //Example from lession
-    // let mut idmap: HashMap<i32,i32> = HashMap::new();               //  id      -> address
-    // let mut addressmap: HashMap<i32, hashdata> = HashMap::new();    //  address -> hashdata::valuei32,valuebool
-    //                                                                 //             hashdata::address
-
-    // let mut currentid: i32 = 0; //Incrementer for idmap, bad fix for now
-    // //parameters_def("getfunkbody", var(parameters("input", Integer, Nil(0))), Integer, variable(parameters("z", Integer, boxs(Num(9)))))
-    // let boxedname = Box::new("getfunkbody".to_string());
-    // let boxedargs = Box::new(function_arguments::var(variable::name(Box::new("asd".to_string()))));
-    // let boxedelements = Box::new(function_elements::variable(variable::name(Box::new("asd".to_string()))));
-
-    // functionDeclare(List::func(function::parameters_def(boxedname, boxedargs, Type::Integer, boxedelements)),&mut state);
-    // println!("functionDeclare: {:?}",state);
-
-
-    // let boxedname = Box::new("funcincall".to_string());
-    // let boxedargs = Box::new(function_arguments::var(variable::name(Box::new("asd".to_string()))));
-    // let boxedelements = Box::new(function_elements::return_val(variable_value::Number(67)));
-
-    // functionDeclare(List::func(function::parameters_def(boxedname, boxedargs, Type::Integer, boxedelements)),&mut state);
-    // println!("functionDeclare 2: {:?}",state);
-    // //fixar du resten rickard? 
-    // //Jajjemän kirrar allt lite snabbt / Rickard
-    // //vi andra jobbar med java / over?
-
-    // // let mem_result = getFromMemory(1,&mut addressmap);
-    // // println!("{:?}",mem_result);
-
-    // let callargs = Box::new(function_arguments_call::variable(Box::new(variable::parameters(Box::new("variable".to_string()),Type::Integer,Box::new(variable_value::Number(24))))));
-    // let varincallargs2 = Box::new(function_arguments_call::variable(Box::new(variable::parameters(Box::new("variable2".to_string()),Type::Integer,Box::new(variable_value::Number(24))))));
-    // let callargs2 = Box::new(function_arguments_call::function(Box::new(function::parameters_call(Box::new("funcincall".to_string()),varincallargs2))));
-
-    // function_arguments_call_execute(Box::new("getfunkbody".to_string()), callargs2, &mut state, &mut idmap, &mut addressmap, &mut currentid);
-
-    // let getst = getState("getfunkbody".to_string(),&mut state);                             //Get state
-
-    // println!("getState after call 'getfunkbody' {:?}",*getst);
-    // let getst = getState("funcincall".to_string(),&mut state);                             //Get state
-
-    // println!("getState after call 'funcincall' {:?}",*getst);
-    // println!("state after call: {:?}",state);
-
-    // let mem_result = getFromMemory(0,&mut addressmap);                                      //Get variable declared in call.
-    // println!("getFromMemory after call: {:?}",mem_result);
-    // let mem_result = getFromMemory(1,&mut addressmap);                                      //Get variable declared in return.
-    // println!("getFromMemory after call: {:?}",mem_result);
-
-    // let hvar = hashvariable::var("variablename".to_string(),1);
-
-    // let temp_var = variable::name(Box::new("variablename".to_string()));
-
-    // let hdata = hashdata::valuei32(5);
-    // let hdata2 = hashdata::valuei32(8);
-    // let hdata3 = hashdata::valuebool(false);
-
-    // let add_result = addToMemory(0,hdata,&mut idmap,&mut addressmap,&mut currentid);        //Add three variables to memory.
-    // println!("addToMemory: {:?}",add_result);
-    // let add_result = addToMemory(0,hdata2,&mut idmap,&mut addressmap,&mut currentid);
-    // println!("addToMemory: {:?}",add_result);
-    // let add_result = addToMemory(0,hdata3,&mut idmap,&mut addressmap,&mut currentid);
-    // println!("addToMemory: {:?}",add_result);
-
-    // let mem_result = getFromMemory(2,&mut addressmap);                                      //Get the three added from memory to print.
-    // println!("getFromMemory: {:?}",mem_result);
-    // let mem_result = getFromMemory(3,&mut addressmap);
-    // println!("getFromMemory: {:?}",mem_result);
-    // let mem_result = getFromMemory(4,&mut addressmap);
-    // println!("getFromMemory: {:?}",mem_result);
-
-    // let hvar = hashvariable::var("variablename".to_string(),0);                             //Create three local variables, these contain a names and address
-    // let hvar2 = hashvariable::var("variablename2".to_string(),1);                           //of the 'real' variable. The name is not stored in mmemory.
-    // let hvar3 = hashvariable::var("variablename3".to_string(),2);
-
-    // let boolresult = addLocalVariable("getfunkbody".to_string(),hvar, &mut state);          //Add the three local variables to function 'getfunkbody'
-    // println!("addLocalVariable_sucess: {:?}",boolresult);
-    // println!("changedstate_after_addLocalVariable: {:?}",state);
-
-    // let boolresult = addLocalVariable("getfunkbody".to_string(),hvar2, &mut state);
-    // println!("addLocalVariable_sucess: {:?}",boolresult);
-    // println!("changedstate_after_addLocalVariable: {:?}",state);
-
-    // let boolresult = addLocalVariable("getfunkbody".to_string(),hvar3, &mut state);
-    // println!("addLocalVariable_sucess: {:?}",boolresult);
-    // println!("changedstate_after_addLocalVariable: {:?}",state);
-
-    // let pointer = addPointer(0, &mut idmap, &mut addressmap, &mut currentid);               //Add a pointer to the first variable added to memory, address 0.
-    // println!("pointer added at address: {:?}",pointer);
-    // let mem_result_pointer = getFromMemory(pointer,&mut addressmap);                        //Get out address to check.
-    // println!("pointer got from memory: {:?}",mem_result_pointer);
-    // match mem_result_pointer {
-    //     hashdata::address(v) => {
-    //         let pointer_get = getFromMemory(v, &mut addressmap);                            //Get value pointer is pointing to, address 0's value. valuei32(5)
-    //         println!("pointer value: {:?}",pointer_get);
-    //     }
-    //     _ => panic!("Not pointer"),
-    // }
-
-    // let getst = getState("getfunkbody".to_string(),&mut state);                             //Get state
-
-    // println!("getState 'getfunkbody' {:?}",*getst);
-
-    // let rmhvar = hashvariable::var("variablename".to_string(),0);
-
-    // let remlocal = removeLocalVariable("getfunkbody".to_string(), rmhvar, &mut state);      //Remove one of the local variables.
-    // let getst = getState("getfunkbody".to_string(),&mut state);
-    // println!("getState_after_rmlocal 'getfunkbody' {:?}",*getst);
-
-    // let remlocalall = removeAllLocalVariables("getfunkbody".to_string(), &mut state);       //Remove all local variables. They still exist in memory.
-    // let getst = getState("getfunkbody".to_string(),&mut state);
-    // println!("getState_after_rmlocalall 'getfunkbody' {:?}",*getst);
-    
-    // let remst = removeState("getfunkbody".to_string(),&mut state);                          //Remove state of function 'getfunkbody'
-    
-    // println!("state after remove: {:?}",state);
-}
+fn main() {}

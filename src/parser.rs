@@ -123,11 +123,11 @@ fn parser2(input: &str) -> IResult<&str, &str> {
 fn tag_semi_col(input: &str) -> IResult<&str, &str> {
     preceded(
         multispace0,
-        alt((
+        // alt((
             tag(";"),
-            preceded(tag(")"), preceded(multispace0, tag(";"))),
-            tag(")"),
-        )),
+            // preceded(tag(")"), preceded(multispace0, tag(";"))),
+            // tag(")"),
+        // )),
     )(input)
 }
 
@@ -166,6 +166,7 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
         }
         Err(q) => {
             let (restvalue, value) = finalparser(input);
+            println!("value: {:?}", value);
             let test: (&str, expr) = match parser2(value) {
                 Ok(v) => {
                     let value: i32 = value.parse().unwrap();
@@ -194,13 +195,15 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                     };
                     if_var
                 }
-                Err(q) => match get_parentheses_content(restvalue) {
+                Err(q) => match get_reg_brack_cont(restvalue) {
                     Ok(v) => {
                         let value = String::from(value);
-                        let func_box_var = function_call_parentheses_parser_final(v.1);
+                        //let func_box_var = function_call_parentheses_parser_final(v.1);
+                        let func_box_var = func_var(v.1);
                         let funcpar = function::parameters_call(Box::new(value), func_box_var);
                         let list_var = func(funcpar);
-
+                        println!("list_var: {:?}", list_var);
+                        println!("v.0: {:?}", &v.0);
                         let if_val = if v.0 == ";" || v.0 == "" {
                             ("", expr::list(list_var))
                         } else {
@@ -208,6 +211,7 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                                                                               Ok(v)=>v,
                                                                              Err(q)=> ("error","error")
                                                                               };
+                            println!("checkvar1, checkvar2: {:?}", (checkvar1, checkvar2));                                                  
                             let if_val_inner = if checkvar2 == ";" || checkvar2 == ")" {
                                 (checkvar1, expr::list(list_var))
                             } else {
@@ -324,22 +328,22 @@ fn get_parentheses_content(input: &str) -> IResult<&str, &str> {
 //Parses all function parameters, that can be supplied in a function call.
 
 fn function_call_parentheses_parser(input: &str) -> IResult<&str, Vec<&str>> {
-
+    println!("input to func_call_paran: {:?}", &input);
     let z: u8 = 0;
     let x: IResult<&str, Vec<&str>> = many0(delimited(take(z), take_until(","), tag(",")))(input);
-
+    println!("x: {:?}",&x);
     x
 }
 
 // Calls function_call_parenthesis_parser and matches it so that error dont cause problems
-fn function_call_parentheses_parser_final(input: &str) -> Box<function_arguments_call> {
-    let (reststring, values) = match function_call_parentheses_parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", vec!["error"]),
-    };
-    func_var(values, reststring)
-}
-
+// fn function_call_parentheses_parser_final(input: &str) -> Box<function_arguments_call> {
+    // let (reststring, values) = match function_call_parentheses_parser(input) {
+        // Ok(v) => v,
+        // Err(q) => ("error", vec!["error"]),
+    // };
+    // func_var(values)
+// }
+// 
 //Parses the arguments of a newly defined function, which uses the function_call_parentheses_parser to match two values.
 
 fn function_def_parentheses_parser_final(input: &str) -> Box<function_arguments> {
@@ -352,30 +356,26 @@ fn function_def_parentheses_parser_final(input: &str) -> Box<function_arguments>
 }
 
 //parses the arguments to a funtion call so in "function(var, func(3)+var2, 5)"" it parses the expresions "var", "func(3)+var2" and "5"  
-fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_call> {
-    println!("with input: {:?}",(&input, &reststring));
-    if input.len() == 0 {
-        let (_, x) = match put_in_box(reststring) {
-            Ok(v) => v,
-            _ => panic!(),
-        };
+fn func_var(mut input: Vec<expr>) -> Box<function_arguments_call> {
+    println!("with input: {:?}",(&input));
+    if input.len() == 1 {
+        let x = input.pop().unwrap();         
+
         let x = match x {
             expr::list(x) => x,
             _ => panic!(),
         };
         return Box::new(function_arguments_call::bx(Box::new(x)));
     }
-    let (input_str, x) = match put_in_box(input.pop().unwrap()) {
-        Ok(v) => v,
-        _ => panic!(),
-    };
+    let x = input.pop().unwrap();
+ 
     let x = match x {
         expr::list(x) => x,
         _ => panic!(),
     };
     let list = function_arguments_call::arg_call_list(
         Box::new(function_arguments_call::bx(Box::new(x))),
-        func_var(input, reststring),
+        func_var(input),
     );
     return Box::new(list);
 }
@@ -434,6 +434,29 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
         )),
         preceded(multispace0, tag("}")),
     )(input)
+}
+
+fn get_reg_brack_cont(input:&str)->IResult<&str, Vec<expr>>{
+    println!("input to get_reg_brack: {:?}", input);
+    let output =  delimited(
+        preceded(multispace0, tag("(")),
+        many0(preceded(
+            multispace0,
+            terminated(
+                put_in_box,
+                preceded(
+                    multispace0,
+                    alt((
+                        tag(","),
+                        tag("")
+                    )),
+                ),
+            ),
+        )),
+        preceded(multispace0, tag(")")),
+    )(input);
+    println!("output from get_reg_brack: {:?}",output);
+    output
 }
 
 fn get_parentheses_body(input: &str) -> IResult<&str, expr> {

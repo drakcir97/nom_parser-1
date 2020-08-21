@@ -48,19 +48,9 @@ fn main() {
             return 1;
         }
         
-        fn getfunkbody(input: i32) -> i32{
-            let z:i32 = 9;
-            return input+1;
-        }
-
         fn main(input: i32) -> i32{
-            let testInt:i32 = 1;
-            let testVar:bool = 1 > 4;
-            let test:i32 = asd(testInt);
-            let y:i32 = 5;
-            while (y>2){
-                let y: i32 = y-1;
-            }
+            let testV:bool = asd(1); 
+            let test:i32 = asd(testV);
         }
         "
         );

@@ -30,152 +30,281 @@ use crate::enums::op::{add, div, mult, res, sub, wrong};
 use crate::enums::variable_value::{boxs, Boolean, Nil, Number};
 use crate::enums::variable::{name, parameters};
 
+//Specific enum for typechecker, used to check return values.
+enum hashchecker {
+    st(Box<Type>),
+    Nil,
+}
+
+//Sets type in hashmap.
+fn setType(na: String, ty: Box<Type>, check: &mut HashMap<String, hashchecker>) {
+    check.insert(na,hashchecker::st(ty));
+}
+
+//Gets type from hashmap.
+fn getType(na: String, check: &mut HashMap<String, hashchecker>) -> &hashchecker {
+    if check.contains_key(&na) {
+        let result = check.get(&na);
+        match result {
+            Some(val) => return val,
+            None => panic!("Get type failed!: getType"),
+        }
+    } else {
+        panic!("No such type exists!: getType");
+    }
+}
+
 pub fn typechecker(pg : Program) {
     let (nm, statements) = match pg {
         Program::pgr(v,w) => (v,w),
     };
 
+    let mut check: HashMap<String, hashchecker> = HashMap::new();
+
     let mut iter = statements.iter(); 
 
     for stmt in iter {
-        listchecker(stmt.clone()); //Loop through and check all types.
+        listChecker("".to_string(),stmt.clone(), &mut check); //Loop through and check all types.
     }
 }
 
 //Takes a struct and checks if the operand matches the left and right hand side. That is, if you try to add a integer and bool it will panic.
 //Also checks for variables to see that the assignment is the correct type.
-fn listchecker(ls: List) -> Type {
+fn listChecker(na: String, ls: List, check: &mut HashMap<String, hashchecker>) -> Type {
     match ls {
         List::Num(n) => Type::Integer,
         List::boolean(b) => Type::boolean,
         List::Cons(l,o,r) => {
-            let ls = listchecker(*l);
-            let rs = listchecker(*r);
-            match o {
-                op::add => {
-                    match ls {
-                        Type::Integer => {
-                            match rs {
-                                Type::Integer => return Type::Integer,
-                                _ => panic!("Incorrect types: typechecker"),
-                            };
-                        },
-                        _ => panic!("Incorrect types: typechecker"),
-
-                    };
-                },
-                op::sub => {
-                    match ls {
-                        Type::Integer => {
-                            match rs {
-                                Type::Integer => return Type::Integer,
-                                _ => panic!("Incorrect types: typechecker"),
-                            };
-                        },
-                        _ => panic!("Incorrect types: typechecker"),
-
-                    };
-                },
-                op::div => {
-                    match ls {
-                        Type::Integer => {
-                            match rs {
-                                Type::Integer => return Type::Integer,
-                                _ => panic!("Incorrect types: typechecker"),
-                            };
-                        },
-                        _ => panic!("Incorrect types: typechecker"),
-
-                    };
-                },
-                op::mult => {
-                    match ls {
-                        Type::Integer => {
-                            match rs {
-                                Type::Integer => return Type::Integer,
-                                _ => panic!("Incorrect types: typechecker"),
-                            };
-                        },
-                        _ => panic!("Incorrect types: typechecker"),
-
-                    };
-                },
-                op::res => {
-                    match ls {
-                        Type::Integer => {
-                            match rs {
-                                Type::Integer => return Type::Integer,
-                                _ => panic!("Incorrect types: typechecker"),
-                            };
-                        },
-                        _ => panic!("Incorrect types: typechecker"),
-
-                    };
-                },
-                op::and => {
-                    match ls {
-                        Type::boolean => {
-                            match rs {
-                                Type::boolean => return Type::boolean,
-                                _ => panic!("Incorrect types: typechecker"),
-                            };
-                        },
-                        _ => panic!("Incorrect types: typechecker"),
-
-                    };
-                },
-                op::or => {
-                    match ls {
-                        Type::boolean => {
-                            match rs {
-                                Type::boolean => return Type::boolean,
-                                _ => panic!("Incorrect types: typechecker"),
-                            };
-                        },
-                        _ => panic!("Incorrect types: typechecker"),
-
-                    };
-                },
-                _ => panic!("Incorrect operand : typechecker"),
-            };            
+            return consChecker(na, l, o, r, check);               
         },
         List::var(v) => {
-            match v {
-                variable::parameters(na,ty,value) => {
-                    match ty {
-                        Type::Integer => {
-                            match *value {
-                                variable_value::Number(n) => {
-                                    return Type::Integer;
-                                },
-                                variable_value::boxs(b) => {
-                                    let typ = listchecker(unbox(b));
-                                },
-                                _ => panic!("Incorrect assignment: typechecker"),
-                            };
-                            return Type::unknown(0);
-                        },
-                        Type::boolean => {
-                            match *value {
-                                variable_value::Boolean(b) => {
-                                    return Type::boolean;
-                                },
-                                variable_value::boxs(b) => {
-                                    let typ = listchecker(unbox(b));
-                                },
-                                _ => panic!("Incorrect assignment: typechecker"),
-                            };
-                            return Type::unknown(0);
-                        },
-                        _ => Type::unknown(0),
-                    };
-                    return Type::unknown(0);
-                },
-                _ => Type::unknown(0), //Added to be able to test 1/11-19 /Rickard
-            }
+            return varChecker(na.clone(), v, check);    
+        },
+        List::func(f) => {
+            return functionChecker(na.clone(), f, check);
+        },
+        List::paran(p) => {
+            return listChecker(na.clone(), unbox(p), check);
         },
         _ => Type::unknown(0), //Added to be able to test 1/11-19, should skip here /Rickard
     }    
+}
+
+//Checks that variable declarations are correct type.
+fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>) -> Type {
+    match v {
+        variable::parameters(_n,ty,value) => {
+            match ty {
+                Type::Integer => {
+                    match *value {
+                        variable_value::Number(n) => {
+                            return Type::Integer;
+                        },
+                        variable_value::boxs(b) => {
+                            let typ = listChecker(na.clone(), unbox(b), check);
+                        },
+                        _ => panic!("Incorrect assignment: typechecker"),
+                    };
+                    return Type::unknown(0);
+                },
+                Type::boolean => {
+                    match *value {
+                        variable_value::Boolean(b) => {
+                            return Type::boolean;
+                        },
+                        variable_value::boxs(b) => {
+                            let typ = listChecker(na.clone(),unbox(b), check);
+                        },
+                        _ => panic!("Incorrect assignment: typechecker"),
+                    };
+                    return Type::unknown(0);
+                },
+                _ => Type::unknown(0),
+            };
+            return Type::unknown(0);
+        },
+        _ => Type::unknown(0), //Added to be able to test 1/11-19 /Rickard
+    }
+}
+
+//Checks that the type is correct and matches operand.
+fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap<String, hashchecker>) -> Type {
+    let ls = listChecker(na.clone(),*l, check);
+    let rs = listChecker(na.clone(),*r, check);
+    match o {
+        op::add => {
+            match ls {
+                Type::Integer => {
+                    match rs {
+                        Type::Integer => return Type::Integer,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::sub => {
+            match ls {
+                Type::Integer => {
+                    match rs {
+                        Type::Integer => return Type::Integer,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::div => {
+            match ls {
+                Type::Integer => {
+                    match rs {
+                        Type::Integer => return Type::Integer,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::mult => {
+            match ls {
+                Type::Integer => {
+                    match rs {
+                        Type::Integer => return Type::Integer,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::res => {
+            match ls {
+                Type::Integer => {
+                    match rs {
+                        Type::Integer => return Type::Integer,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::and => {
+            match ls {
+                Type::boolean => {
+                    match rs {
+                        Type::boolean => return Type::boolean,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::or => {
+            match ls {
+                Type::boolean => {
+                    match rs {
+                        Type::boolean => return Type::boolean,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        _ => panic!("Incorrect operand : typechecker"),
+    }; 
+}
+
+//Checks functions.
+fn functionChecker(na: String, fu: function, check: &mut HashMap<String, hashchecker>) -> Type {
+    match fu {
+        function::parameters_call(_na,_args) => {
+            return Type::unknown(0);
+        },
+        function::parameters_def(funame,args,ty,ele) => {
+            setType(unbox(funame.clone()), Box::new(ty.clone()), check); //Add type to hashmap for later use in returnChecker
+            function_eChecker(unbox(funame.clone()), unbox(ele), check);
+            return ty;
+        },
+    }
+}
+
+//Checks the different function elements.
+fn function_eChecker(na: String, fe: function_elements, check: &mut HashMap<String, hashchecker>) {
+    match fe {
+        function_elements::ele_list(v,w)=>{
+            let res1 = function_eChecker(na.clone(), unbox(v.clone()), check);
+            let res2 = function_eChecker(na.clone(), unbox(w.clone()), check);
+        },
+        function_elements::boxs(v)=>{
+            varChecker(na.clone(), unbox(v), check); 
+        },
+        function_elements::if_box(v)=>{
+            ifChecker(na.clone(), unbox(v), check);
+        },
+        function_elements::List(v)=>{
+            listChecker(na.clone(), v, check);
+        },
+        function_elements::function(v)=>{
+            functionChecker(na.clone(), v, check);
+        },
+        function_elements::variable(v)=>{
+            varChecker(na.clone(), v, check); 
+        },
+        function_elements::if_enum(v)=>{
+            ifChecker(na.clone(), v, check);
+        },
+        function_elements::while_enum(v) => {
+            whileChecker(na.clone(), v, check)
+        },
+        function_elements::return_val(v) => {
+            returnChecker(na.clone(), v, check);
+        },
+    }
+}
+
+//TODO
+fn function_a_Checker(na: String, fa: function_arguments, check: &mut HashMap<String, hashchecker>) {
+    
+}
+
+//TODO
+fn function_a_callChecker(na: String, fa: function_arguments_call, check: &mut HashMap<String, hashchecker>) {
+
+}
+
+//TODO
+fn ifChecker(na: String, i: if_enum, check: &mut HashMap<String, hashchecker>) {
+
+}
+
+//TODO
+fn whileChecker(na: String, wh: while_enum, check: &mut HashMap<String, hashchecker>) {
+
+}
+
+//Checks that the return type matches the function.
+fn returnChecker(na: String, v: variable_value, check: &mut HashMap<String, hashchecker>) {
+    let hcheck = getType(na.clone(), check);
+    let rettype = match hcheck.clone() {
+        hashchecker::st(bo) => {unbox(bo.clone())},
+        _ => {Type::unknown(0)},
+    };
+    let realtype = match v {
+        variable_value::variable(v) => {varChecker(na.clone(), unbox(v), check)},
+        variable_value::boxs(l) => {listChecker(na.clone(), unbox(l), check)},
+        variable_value::Number(n) => {Type::Integer},
+        variable_value::Boolean(n) => {Type::boolean},
+        _ => {panic!("returnChecker")},
+    };
+    if rettype != realtype {
+        panic!("Type mismatch returnChecker");
+    };
 }
 
 fn unbox<T>(value: Box<T>) -> T {
@@ -183,11 +312,4 @@ fn unbox<T>(value: Box<T>) -> T {
 }
 
 
-fn main() {
-    // let y = typechecker(List::Cons(Box::new(List::boolean(true)), op::and, Box::new(List::boolean(true))));
-    // println!("res boolean: {:?}", y);
-    // let x = typechecker(List::Cons(Box::new(Num(4)), mult, Box::new((Cons(Box::new(Num(10)), mult, Box::new(Cons(Box::new(Num(1000)), div, Box::new(Cons(Box::new(Num(3)), mult, Box::new(Cons(Box::new(Num(8)), add, Box::new(Num(7)))))))))))));
-    // println!("res Integer: {:?}", x);
-    // let z = typechecker(List::var(variable::parameters(Box::new("VariableName".to_string()),Type::boolean,Box::new(variable_value::Boolean(Box::new("true".to_string()))))));
-    // println!("res variable assign boolean: {:?}", z);
-}
+fn main() {}
