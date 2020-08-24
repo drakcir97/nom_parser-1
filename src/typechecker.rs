@@ -36,12 +36,12 @@ enum hashchecker {
     Nil,
 }
 
-//Sets type in hashmap.
+//Sets return type of a function in hashmap.
 fn setType(na: String, ty: Box<Type>, check: &mut HashMap<String, hashchecker>) {
     check.insert(na,hashchecker::st(ty));
 }
 
-//Gets type from hashmap.
+//Gets return type of a function in hashmap.
 fn getType(na: String, check: &mut HashMap<String, hashchecker>) -> &hashchecker {
     if check.contains_key(&na) {
         let result = check.get(&na);
@@ -90,7 +90,7 @@ fn listChecker(na: String, ls: List, check: &mut HashMap<String, hashchecker>) -
     }    
 }
 
-//Checks that variable declarations are correct type.
+//Checks that variable declarations are correct type. Need to add ability to check for variable names.
 fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>) -> Type {
     match v {
         variable::parameters(_n,ty,value) => {
@@ -102,8 +102,11 @@ fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>)
                         },
                         variable_value::boxs(b) => {
                             let typ = listChecker(na.clone(), unbox(b), check);
+                            if typ != Type::Integer {
+                                return panic!("Incorrect assignment: typechecker")
+                            }
                         },
-                        _ => panic!("Incorrect assignment: typechecker"),
+                        _ => return panic!("Incorrect assignment: typechecker"),
                     };
                     return Type::unknown(0);
                 },
@@ -114,8 +117,11 @@ fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>)
                         },
                         variable_value::boxs(b) => {
                             let typ = listChecker(na.clone(),unbox(b), check);
+                            if typ != Type::Integer {
+                                return panic!("Incorrect assignment: typechecker")
+                            }
                         },
-                        _ => panic!("Incorrect assignment: typechecker"),
+                        _ => return panic!("Incorrect assignment: typechecker"),
                     };
                     return Type::unknown(0);
                 },
@@ -223,7 +229,7 @@ fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap
 //Checks functions.
 fn functionChecker(na: String, fu: function, check: &mut HashMap<String, hashchecker>) -> Type {
     match fu {
-        function::parameters_call(_na,_args) => {
+        function::parameters_call(_na,_args) => { //Do nothing on function calls.
             return Type::unknown(0);
         },
         function::parameters_def(funame,args,ty,ele) => {
@@ -234,7 +240,7 @@ fn functionChecker(na: String, fu: function, check: &mut HashMap<String, hashche
     }
 }
 
-//Checks the different function elements.
+//Checks the different function elements. Main function for function elements.
 fn function_eChecker(na: String, fe: function_elements, check: &mut HashMap<String, hashchecker>) {
     match fe {
         function_elements::ele_list(v,w)=>{
@@ -268,29 +274,36 @@ fn function_eChecker(na: String, fe: function_elements, check: &mut HashMap<Stri
     }
 }
 
-//TODO
+//Empty for now, could be used later to check that the inputs to functions have the correct type. But to accomplish this, a new function
+//will be needed to "declare" the function to a hashmap lile in the interpreter.
 fn function_a_Checker(na: String, fa: function_arguments, check: &mut HashMap<String, hashchecker>) {
     
 }
 
-//TODO
+//Empty for now, could be used later to check that the inputs to functions have the correct type. But to accomplish this, a new function
+//will be needed to "declare" the function to a hashmap lile in the interpreter.
 fn function_a_callChecker(na: String, fa: function_arguments_call, check: &mut HashMap<String, hashchecker>) {
 
 }
 
-//TODO
+//Checks if enums, including the condition.
  fn ifChecker(na: String, i: if_enum, check: &mut HashMap<String, hashchecker>) {
     match i {
         if_enum::condition(v ,w) =>{
-            listChecker(na, unbox(v), check);
-            
+            listChecker(na.clone(), unbox(v), check);
+            function_eChecker(na.clone(), unbox(w), check); 
         }
     }
  }
 
-//TODO
+//Checks while enums, including the condition.
 fn whileChecker(na: String, wh: while_enum, check: &mut HashMap<String, hashchecker>) {
-
+    match wh {
+        while_enum::condition(v ,w) =>{
+            listChecker(na.clone(), unbox(v), check);
+            function_eChecker(na.clone(), unbox(w), check); 
+        }
+    }
 }
 
 //Checks that the return type matches the function.

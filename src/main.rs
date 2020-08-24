@@ -48,7 +48,7 @@ fn main() {
     let x = parserun(
     "
         fn main(input: i32) -> i32{
-            let testV:i32 = 1+(asd(5)-1);
+            let testV:i32 = 1-(asd(5)-1);
         }
         fn asd(input: i32)->i32{
             return input;

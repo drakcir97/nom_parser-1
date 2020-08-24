@@ -126,7 +126,7 @@ fn tag_semi_col(input: &str) -> IResult<&str, &str> {
          alt((
             tag(";"),
             preceded(tag(")"), preceded(multispace0, tag(";"))),
-            tag(")"),
+            // tag(")"),
         )),
     )(input)
 }
@@ -176,7 +176,7 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                     let if_var = if restvalue == ";" || restvalue == "" {
                         return Ok(("", expr::list(list_var)));
                     } else {
-                        // if operator in str
+                        
                         let test1 = match operator(restvalue){
                             Ok(v) =>{
 
@@ -189,7 +189,9 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                                 (input, expr::list(list))
                             },
                             Err(q) => {
-                               (restvalue, expr::list(list_var))
+                                //HERE NEEDS FIXING 
+                                let (reststring,_) = tag_semi_col(restvalue)?;
+                               (reststring, expr::list(list_var))
                             },
                         };
                         return Ok(test1);
