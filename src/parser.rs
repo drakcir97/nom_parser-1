@@ -134,6 +134,7 @@ fn tag_semi_col(input: &str) -> IResult<&str, &str> {
 
 // Parses everything right of a "=" so in "x:i32 = 3+x+(y(1)+8)" it parses the "3+x+(y(1)+8)" part
 pub fn put_in_box(input: &str) -> IResult<&str, expr> {
+    println!("niput to put in box {:?}", input);
     let (input, value1) = match get_parentheses_body(input) {
         Ok(v) => {
             let if_var = if v.0 == ";" || v.0 == "" {
@@ -171,27 +172,27 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                 Ok(v) => {
                     let value: i32 = value.parse().unwrap();
                     let list_var = Num(value);
+                    // checks if rest value = "" or ;
                     let if_var = if restvalue == ";" || restvalue == "" {
                         return Ok(("", expr::list(list_var)));
                     } else {
-                        let (checkvar1, checkvar2) = match tag_semi_col(restvalue) {
-                            Ok(v) => v,
-                            Err(q) => ("error", "Error"),
-                        };
-                        let if_var_inner = if checkvar2 == ";" || checkvar2 == ")" {
-                            (checkvar1, expr::list(list_var))
-                        } else {
-                            let (restvalue, operator) = operator(restvalue)?;
+                        // if operator in str
+                        let test1 = match operator(restvalue){
+                            Ok(v) =>{
 
-                            let (input, value2) = put_in_box(restvalue)?; //{
-                            let value2 = match value2 {
-                                expr::list(value2) => value2,
-                                _ => panic!(),
-                            };
-                            let list = Cons(Box::new(Num(value)), operator, Box::new((value2)));
-                            (input, expr::list(list))
+                                let (input, value2) = put_in_box(v.0)?; //{
+                                let value2 = match value2 {
+                                    expr::list(value2) => value2,
+                                    _ => panic!(),
+                                };
+                                let list = Cons(Box::new(Num(value)), v.1, Box::new(value2));
+                                (input, expr::list(list))
+                            },
+                            Err(q) => {
+                               (restvalue, expr::list(list_var))
+                            },
                         };
-                        if_var_inner
+                        return Ok(test1);
                     };
                     if_var
                 }
@@ -207,21 +208,25 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                         let if_val = if v.0 == ";" || v.0 == "" {
                             ("", expr::list(list_var))
                         } else {
-                            let (checkvar1, checkvar2) = tag(";")(input)?;
-                            println!("checkvar1, checkvar2: {:?}", (checkvar1, checkvar2));                                                  
-                            let if_val_inner = if checkvar2 == ";" || checkvar2 == ")" {
-                                (checkvar1, expr::list(list_var))
-                            } else {
-                                let (restvalue, operator) = operator(v.0)?;
-                                let (input, value) = put_in_box(restvalue)?; //{
+                            // if operator in str
+                        let test1 = match operator(v.0){
+                            Ok(val) =>{
+
+                                let (input, value) = put_in_box(val.0)?; //{
                                 let value = match value {
                                     expr::list(value) => value,
                                     _ => panic!(),
                                 };
-                                let list = Cons(Box::new(list_var), operator, Box::new(value));
+                                let list = Cons(Box::new(list_var), val.1, Box::new(value));
                                 (input, expr::list(list))
-                            };
-                            if_val_inner
+                            },
+                            Err(q) => {
+                               let (reststring, _) = tag(";")(v.0)?;
+                               println!("after ; tag: {:?}", reststring);
+                               (reststring, expr::list(list_var))
+                            },
+                        };
+                        return Ok(test1);
                         };
                         if_val
                     }
@@ -423,17 +428,17 @@ fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
             multispace0,
             alt((
                 variable_parser,
-                put_in_box,
                 function_call_return_parser,
                 if_parser,
                 while_parser,
+                put_in_box,
             )),
         )),
         preceded(multispace0, tag("}")),
     )(input)
 }
 
-fn get_reg_brack_cont(input:&str)->IResult<&str, Vec<expr>>{
+pub fn get_reg_brack_cont(input:&str)->IResult<&str, Vec<expr>>{
     println!("input to get_reg_brack: {:?}", input);
     let output =  delimited(
         preceded(multispace0, tag("(")),

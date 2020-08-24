@@ -108,12 +108,10 @@ pub enum while_enum {
     condition(Box<List>, Box<function_elements>),
 }
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Program {
-    pgr(Box<String>,Box<Vec<List>>)
+    pgr(Box<String>, Box<Vec<List>>),
 }
-
-
 
 // -------------------------------------------------------------------------------------------- \\
 //Hashmap for containing the state we are currently in.
@@ -122,26 +120,31 @@ pub enum Program {
 // Example from lession
 //static mut idmap: HashMap<i32,i32> = HashMap::new();               //  id      -> address
 //static mut addressmap: HashMap<i32, hashdata> = HashMap::new();    //  address -> hashdata::valuei32,valuebool
-                                                                            //    hashdata::address
+//    hashdata::address
 
 //static mut currentid: i32 = 0; //Incrementer for idmap, bad fix for now
 // Intepreter enums
 // State for function, contains whether it's running or simply declared. Contains a vector of hashvariable. Last i32 is for line currently running.
-#[derive(Debug,Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum hashstate {
-    state(Box<functionstate>,Box<Vec<hashvariable>>,Box<function>,i32),
+    state(
+        Box<functionstate>,
+        Box<Vec<hashvariable>>,
+        Box<function>,
+        i32,
+    ),
     Nil,
 }
 
 //First one is variable name, last one is the address in addressmap and idmap
-#[derive(Debug,Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum hashvariable {
-    var(String,i32),
+    var(String, i32),
     Nil,
 }
 
 //The data located in addressmap. Value refers to a real value, address just points to another address.
-#[derive(Debug,Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum hashdata {
     valuei32(i32),
     valuebool(bool),
@@ -149,7 +152,7 @@ pub enum hashdata {
 }
 
 //The different states a function can be in.
-#[derive(Debug,Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum functionstate {
     Running,
     Stopped,

@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 
-mod parser;
-mod interpreter;
-mod typechecker;
 mod enums;
+mod interpreter;
+mod parser;
+mod typechecker;
 
 fn main() {
     //let k = put_in_box("-3");
@@ -22,13 +22,15 @@ fn main() {
     // tag(","),
     // )val.pop()
     // )(varib);
-// 
+    //
     // let x = parser::put_in_box("1+(2-(3/9)+2);");
-// 
-    // let x = parser::put_in_box("(1);");
+    //
+    // let x = parser::put_in_box("1;");
 
     // let x = put_in_box("let x: i32 = 6+7;");
-    
+
+    // let x = parser::get_reg_brack_cont("(asd(1))");
+
     //let x = variable_parser("let x: i32 = 6+7;");
     //let input = "(a+b)";
     //let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
@@ -42,20 +44,20 @@ fn main() {
     //   };
     //  }"
     // );
-// 
+    //
     let x = parserun(
-        "fn asd(in: i32) -> i32{
-            return 1;
-        }
-        
+    "
         fn main(input: i32) -> i32{
-            let testV:i32 = asd(5); 
+            let testV:i32 = 1+(asd(5)-1);
         }
-        "
-        );
-// 
-    
-// 
+        fn asd(input: i32)->i32{
+            return input;
+        }
+    "
+    );
+    //
+
+    //
     // let x = if_parser("if (1+2){
     // let x:i32 = 5;
     // let y: i32 =18*7;
@@ -87,14 +89,14 @@ fn main() {
     // let b = 3+6+7;
 }
 
-fn parserun(st : &str) {
+fn parserun(st: &str) {
     let parsed = parser::program_parser(st);
-    println!("parsed: {:?} \n\n",parsed);
-    typechecker::typechecker(parsed.clone());
+    println!("parsed: {:?} \n\n", parsed);
+    //typechecker::typechecker(parsed.clone());
     let result = interpreter::execute(parsed.clone());
 
     let iter = result.iter();
     for line in iter {
-        println!("Program state \n\n {:?}",line);  
+        println!("Program state \n\n {:?}", line);
     }
 }
