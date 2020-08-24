@@ -25,7 +25,7 @@ fn main() {
 // 
     // let x = parser::put_in_box("1+(2-(3/9)+2);");
 // 
-    //let x = parser::put_in_box("1+2-trst+2;");
+    // let x = parser::put_in_box("(1);");
 
     // let x = put_in_box("let x: i32 = 6+7;");
     
@@ -42,15 +42,14 @@ fn main() {
     //   };
     //  }"
     // );
-
+// 
     let x = parserun(
         "fn asd(in: i32) -> i32{
             return 1;
         }
         
         fn main(input: i32) -> i32{
-            let testV:bool = asd(1); 
-            let test:i32 = asd(testV);
+            let testV:i32 = asd(5); 
         }
         "
         );

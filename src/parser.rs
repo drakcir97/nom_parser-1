@@ -123,11 +123,11 @@ fn parser2(input: &str) -> IResult<&str, &str> {
 fn tag_semi_col(input: &str) -> IResult<&str, &str> {
     preceded(
         multispace0,
-        // alt((
+         alt((
             tag(";"),
-            // preceded(tag(")"), preceded(multispace0, tag(";"))),
-            // tag(")"),
-        // )),
+            preceded(tag(")"), preceded(multispace0, tag(";"))),
+            tag(")"),
+        )),
     )(input)
 }
 
@@ -207,10 +207,7 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                         let if_val = if v.0 == ";" || v.0 == "" {
                             ("", expr::list(list_var))
                         } else {
-                            let (checkvar1, checkvar2) = match tag_semi_col(v.0) {
-                                                                              Ok(v)=>v,
-                                                                             Err(q)=> ("error","error")
-                                                                              };
+                            let (checkvar1, checkvar2) = tag(";")(input)?;
                             println!("checkvar1, checkvar2: {:?}", (checkvar1, checkvar2));                                                  
                             let if_val_inner = if checkvar2 == ";" || checkvar2 == ")" {
                                 (checkvar1, expr::list(list_var))
@@ -440,18 +437,16 @@ fn get_reg_brack_cont(input:&str)->IResult<&str, Vec<expr>>{
     println!("input to get_reg_brack: {:?}", input);
     let output =  delimited(
         preceded(multispace0, tag("(")),
-        many0(preceded(
+        many0(delimited(
             multispace0,
-            terminated(
                 put_in_box,
-                preceded(
+                // preceded(
                     multispace0,
-                    alt((
-                        tag(","),
-                        tag("")
-                    )),
-                ),
-            ),
+                    // alt((
+                        // tag(","),
+                        // tag("")
+                    // )),
+                // ),
         )),
         preceded(multispace0, tag(")")),
     )(input);
@@ -566,7 +561,8 @@ fn function_parser(input: &str) -> IResult<&str, List> {
     }
     let (input, curl_para_cont) = match get_curl_brack_body(input2) {
         Ok(v) => v,
-        Err(q) => panic!(),
+        Err(q) => {println!("error message {:?}", q); 
+            panic!()},
     };
 
     //Puts and returns function arguments in tree

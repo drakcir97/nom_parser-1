@@ -279,9 +279,14 @@ fn function_a_callChecker(na: String, fa: function_arguments_call, check: &mut H
 }
 
 //TODO
-fn ifChecker(na: String, i: if_enum, check: &mut HashMap<String, hashchecker>) {
-
-}
+ fn ifChecker(na: String, i: if_enum, check: &mut HashMap<String, hashchecker>) {
+    match i {
+        if_enum::condition(v ,w) =>{
+            listChecker(na, unbox(v), check);
+            
+        }
+    }
+ }
 
 //TODO
 fn whileChecker(na: String, wh: while_enum, check: &mut HashMap<String, hashchecker>) {
