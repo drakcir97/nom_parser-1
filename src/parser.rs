@@ -126,7 +126,7 @@ fn tag_semi_col(input: &str) -> IResult<&str, &str> {
          alt((
             tag(";"),
             preceded(tag(")"), preceded(multispace0, tag(";"))),
-            // tag(")"),
+            tag(")"),
         )),
     )(input)
 }
@@ -135,145 +135,151 @@ fn tag_semi_col(input: &str) -> IResult<&str, &str> {
 // Parses everything right of a "=" so in "x:i32 = 3+x+(y(1)+8)" it parses the "3+x+(y(1)+8)" part
 pub fn put_in_box(input: &str) -> IResult<&str, expr> {
     println!("niput to put in box {:?}", input);
-    let (input, value1) = match get_parentheses_body(input) {
+    let resu = match get_reg_brack_cont(input) {
         Ok(v) => {
-            let if_var = if v.0 == ";" || v.0 == "" {
-                return Ok(("", v.1));
-            } else {
-                let (checkvar1, checkvar2) = match tag_semi_col(v.0) {
-                    Ok(v) => v,
-                    Err(q) => ("error", "Error"),
-                };
-                let if_var_inner = if checkvar2 == ";" || checkvar2 == ")" {
-                    Ok((checkvar1, v.1))
-                } else {
-                    let (restvalue, operator) = operator(v.0)?;
-                    let (input, value2) = put_in_box(restvalue)?; 
-                    let value2 = match value2 {
-                        expr::list(value2) => value2,
-                        _ => panic!(),
-                    };
-                    let value = match v.1 {
-                        expr::list(value) => value,
-                        _ => panic!(),
-                    };
-                    let list = Cons(Box::new(value), operator, Box::new((value2)));
-                    Ok((input, expr::list(list)))
-                };
-                return if_var_inner;
-            };
-            return if_var;
-
-        }
+            cons_paran_parser(v)
+        },
         Err(q) => {
             let (restvalue, value) = finalparser(input);
             println!("value: {:?}", value);
-            let test: (&str, expr) = match parser2(value) {
+            let test = match parser2(value) {
                 Ok(v) => {
-                    let value: i32 = value.parse().unwrap();
-                    let list_var = Num(value);
-                    // checks if rest value = "" or ;
-                    let if_var = if restvalue == ";" || restvalue == "" {
-                        return Ok(("", expr::list(list_var)));
-                    } else {
-                        
-                        let test1 = match operator(restvalue){
-                            Ok(v) =>{
-
-                                let (input, value2) = put_in_box(v.0)?; //{
-                                let value2 = match value2 {
-                                    expr::list(value2) => value2,
-                                    _ => panic!(),
-                                };
-                                let list = Cons(Box::new(Num(value)), v.1, Box::new(value2));
-                                (input, expr::list(list))
-                            },
-                            Err(q) => {
-                                //HERE NEEDS FIXING 
-                                let (reststring,_) = tag_semi_col(restvalue)?;
-                               (reststring, expr::list(list_var))
-                            },
-                        };
-                        return Ok(test1);
-                    };
-                    if_var
-                }
+                    integer_cons_parser(v, value, restvalue)
+                },
                 Err(q) => match get_reg_brack_cont(restvalue) {
                     Ok(v) => {
-                        let value = String::from(value);
-                        //let func_box_var = function_call_parentheses_parser_final(v.1);
-                        let func_box_var = func_var(v.1);
-                        let funcpar = function::parameters_call(Box::new(value), func_box_var);
-                        let list_var = func(funcpar);
-                        println!("list_var: {:?}", list_var);
-                        println!("v.0: {:?}", &v.0);
-                        let if_val = if v.0 == ";" || v.0 == "" {
-                            ("", expr::list(list_var))
-                        } else {
-                            // if operator in str
-                        let test1 = match operator(v.0){
-                            Ok(val) =>{
-
-                                let (input, value) = put_in_box(val.0)?; //{
-                                let value = match value {
-                                    expr::list(value) => value,
-                                    _ => panic!(),
-                                };
-                                let list = Cons(Box::new(list_var), val.1, Box::new(value));
-                                (input, expr::list(list))
-                            },
-                            Err(q) => {
-                               let (reststring, _) = tag(";")(v.0)?;
-                               println!("after ; tag: {:?}", reststring);
-                               (reststring, expr::list(list_var))
-                            },
-                        };
-                        return Ok(test1);
-                        };
-                        if_val
-                    }
+                        function_call_parser(v, value)
+                    },
                     Err(q) => {
-                        let value = String::from(value);
-                        let list_var = if (value == "true"){
-                            List::boolean(true) 
-                        } else if (value == "false") {
-                            List::boolean(false)
-                        } else {
-                            var(variable::name(Box::new(value)))
-                        };
-                        
-                        let if_val = if restvalue == ";" || restvalue == "" {
-                            ("", expr::list(list_var))
-                        } else {
-                            let (checkvar1, checkvar2) = match tag_semi_col(restvalue){
-                                Ok(v)=>v,
-                                Err(q)=> ("error","Error"),
-                            };
-                            let if_val_inner = if checkvar2 == ";" || checkvar2 == ")" {
-
-                                (checkvar1, expr::list(list_var))
-                            } else {
-                                let (restvalue, operator) = operator(restvalue)?;
-                                let (input, value) = put_in_box(restvalue)?; //{
-                                let value = match value {
-                                    expr::list(value) => value,
-                                    _ => panic!(),
-                                };
-
-                                let list = Cons(Box::new(list_var), operator, Box::new(value));
-
-                                (input, expr::list(list))
-                            };
-                            if_val_inner
-                        };
-                        if_val
+                        variable_cons_parser(value, restvalue)
                     }
                 },
             };
             test
         }
     };
-    return Ok((input, value1));
+    return resu;
+}
+
+fn cons_paran_parser(mut v: (&str, Vec<expr>) ) -> IResult<&str, expr> {
+    let express = v.1.pop().unwrap(); 
+    let if_var = if v.0 == ";" || v.0 == "" {
+        return Ok(("", express));
+    } else {
+        match operator(v.0){
+            Ok(val)=>{
+            let (input, value2) = put_in_box(val.0)?; 
+            let value2 = match value2 {
+                expr::list(value2) => value2,
+                _ => panic!(),
+            };
+            let value = match express {
+                expr::list(value) => value,
+                _ => panic!(),
+            };
+            let list = Cons(Box::new(value), val.1, Box::new(value2));
+            Ok((input, expr::list(list)))
+            },
+            Err(q)=>{Ok((v.0, express))} 
+        }
+    };
+    return if_var;
+}
+
+fn integer_cons_parser<'v>(v:(&str, &str), value: &'v str, restvalue: &'v str) -> IResult<&'v str, expr> {
+    let value: i32 = value.parse().unwrap();
+    let list_var = Num(value);
+    // checks if rest value = "" or ;
+    let if_var = if restvalue == ";" || restvalue == "" {
+        return Ok(("", expr::list(list_var)));
+    } else {
+        let test1 = match operator(restvalue){
+            Ok(v) =>{
+                let (input, value2) = put_in_box(v.0)?;
+                let mbox = match value2 {
+                    expr::list(value2) => value2,
+                    _ => panic!(),
+                };
+                let list = Cons(Box::new(Num(value)), v.1, Box::new(mbox));
+                (input, expr::list(list))
+            },
+            Err(q) => {
+                //HERE NEEDS FIXING 
+                // let (reststring,_) = tag_semi_col(restvalue)?;
+                (restvalue, expr::list(list_var))
+            },
+        };
+        return Ok(test1);
+    };
+    if_var
+}
+
+fn function_call_parser<'v>(v: (&'v str, Vec<expr>), value: &'v str) -> IResult<&'v str, expr> {
+    let value = String::from(value);
+    //let func_box_var = function_call_parentheses_parser_final(v.1);
+    let func_box_var = func_var(v.1);
+    let funcpar = function::parameters_call(Box::new(value), func_box_var);
+    let list_var = func(funcpar);
+    println!("list_var: {:?}", list_var);
+    println!("v.0: {:?}", &v.0);
+    let if_val = if v.0 == ";" || v.0 == "" {
+        return Ok(("", expr::list(list_var)));
+    } else {
+        // if operator in str
+        match operator(v.0){
+            Ok(val) =>{
+
+                let (input, value) = put_in_box(val.0)?; 
+                let value = match value {
+                    expr::list(value) => value,
+                    _ => panic!(),
+                };
+                let list = Cons(Box::new(list_var), val.1, Box::new(value));
+                return Ok((input, expr::list(list)));
+            },
+            Err(q) => {
+                let (reststring, _) = tag(";")(v.0)?;
+                println!("after ; tag: {:?}", reststring);
+                return Ok((reststring, expr::list(list_var)));
+            },
+        };
+    };
+}
+
+fn variable_cons_parser<'v>(value: &'v str, restvalue: &'v str) -> IResult<&'v str, expr> {
+    let value = String::from(value);
+    let list_var = if value == "true" {
+        List::boolean(true) 
+    } else if value == "false" {
+        List::boolean(false)
+    } else {
+        var(variable::name(Box::new(value)))
+    };
+    
+    let if_val = if restvalue == ";" || restvalue == "" {
+        ("", expr::list(list_var))
+    } else {
+        // operator used to fail
+        match operator(restvalue){
+            Ok(v)=>{
+                let (input, value) = put_in_box(v.0)?; 
+                let value = match value {
+                    expr::list(value) => value,
+                    _ => panic!(),
+                };
+    
+                let list = Cons(Box::new(list_var), v.1, Box::new(value));
+    
+                (input, expr::list(list))
+            },
+            Err(q)=>{
+                // this needs to be returned but only if tag ";" ???
+                (restvalue, expr::list(list_var))
+            }
+        }
+    };
+    return Ok(if_val);
+                    
 }
 
 fn parser(input: &str) -> IResult<&str, &str> {
@@ -455,7 +461,7 @@ pub fn get_reg_brack_cont(input:&str)->IResult<&str, Vec<expr>>{
                     // )),
                 // ),
         )),
-        preceded(multispace0, tag(")")),
+        preceded(multispace0, tag_semi_col),
     )(input);
     println!("output from get_reg_brack: {:?}",output);
     output
