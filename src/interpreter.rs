@@ -47,7 +47,7 @@ pub fn execute(pg: Program) -> Vec<(String, hashstate)> {
     let mut addressmap: HashMap<i32, hashdata> = HashMap::new();    //  address -> hashdata::valuei32,valuebool
                                                                     //             hashdata::address
 
-    let mut currentid: i32 = 0; //Incrementer for idmap, a needed but not good solution.
+    let mut currentid: i32 = 1; //Incrementer for idmap, a needed but not good solution.
 
     let mut dec_iter = statements.iter(); 
 
