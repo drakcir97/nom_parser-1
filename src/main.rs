@@ -29,7 +29,9 @@ fn main() {
 
     // let x = put_in_box("let x: i32 = 6+7;");
 
-    // let x = parser::get_reg_brack_cont("(asd(1))");
+    // let x = parser::get_reg_brack_cont("(asd(test(1))+4);");
+    //let x = parser::get_reg_brack_cont("(1-asd(5)-1;)");
+    //let x = parser::get_curl_brack_body("{let testV:i32 = 1-asd(5)-1; }");
 
     //let x = variable_parser("let x: i32 = 6+7;");
     //let input = "(a+b)";
@@ -48,7 +50,7 @@ fn main() {
     let x = parserun(
     "
         fn main(input: i32) -> i32{
-            let testV:i32 = 1-(asd(5)-1);
+            let testV:i32 = (1-asd(5))-1;
         }
         fn asd(input: i32)->i32{
             return input;
