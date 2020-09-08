@@ -129,8 +129,8 @@ fn functionVarDeclare(ls: List, check: &mut HashMap<String, hashchecker>) {
         List::func(f) => {
             match f {
                 function::parameters_def(na,args,ty,ele) => {
-                    setInpType(unbox(na.clone()), args, check);
-                    setReturnType(unbox(na.clone()), Box::new(ty),check);
+                    let tevec: Vec<hashvariable> = Vec::new();
+                    check.insert(unbox(na.clone()),hashchecker::st(Box::new(ty),Box::new(tevec.clone()),args.clone()));
                 },
                 _ => (), 
             }
@@ -354,13 +354,13 @@ fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap
 //Checks functions.
 fn functionChecker(na: String, fu: function, check: &mut HashMap<String, hashchecker>, varcheck: &mut HashMap<i32, hashvarchecker>, currentid: &mut i32) -> Type {
     match fu {
-        function::parameters_call(_na,args) => { 
-            let typearg = match getType(na.clone(), check) {
+        function::parameters_call(nna,args) => { 
+            let typearg = match getType(unbox(nna.clone()), check) {
                 hashchecker::st(ty,_,ve) => {ve},
                 _ => panic!(),
             };
-            function_a_callChecker(na.clone(), unbox(args), unbox(typearg.clone()), check, varcheck, currentid);
-            let ty = getType(na.clone(), check);
+            function_a_callChecker(unbox(nna.clone()), na.clone(), unbox(args), unbox(typearg.clone()), check, varcheck, currentid);
+            let ty = getType(unbox(nna.clone()), check);
             let ret = match ty.clone() {
                 hashchecker::st(ty,_,_) => {
                     unbox(ty)
@@ -419,7 +419,7 @@ fn function_a_Checker(na: String, fa: function_arguments, check: &mut HashMap<St
 
 //Checks that the inputs to a function are the correct type. Uses function_arguments stored in a hashmap to accomplish this. 
 //Steps through each enum to verify correct number of arguments and correct type.
-fn function_a_callChecker(na: String, fa: function_arguments_call, ve: function_arguments, check: &mut HashMap<String, hashchecker>, varcheck: &mut HashMap<i32, hashvarchecker>, currentid: &mut i32) -> Type {
+fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call, ve: function_arguments, check: &mut HashMap<String, hashchecker>, varcheck: &mut HashMap<i32, hashvarchecker>, currentid: &mut i32) -> Type {
     if na == "main" {
         return Type::unknown(0);
     }
@@ -430,8 +430,8 @@ fn function_a_callChecker(na: String, fa: function_arguments_call, ve: function_
                 _ => panic!("Too many inputs to func: function_a_callChecker"),
             };
             let fal = function_arguments::var(varl);
-            let _left = function_a_callChecker(na.clone(), unbox(lfac), fal, check, varcheck, currentid);
-            let _right = function_a_callChecker(na.clone(), unbox(rfac), unbox(far), check, varcheck, currentid);
+            let _left = function_a_callChecker(na.clone(), oldna.clone(), unbox(lfac), fal, check, varcheck, currentid);
+            let _right = function_a_callChecker(na.clone(), oldna.clone(), unbox(rfac), unbox(far), check, varcheck, currentid);
         }
         function_arguments_call::variable(va) => {
             let functionargs = match ve {
@@ -442,10 +442,11 @@ fn function_a_callChecker(na: String, fa: function_arguments_call, ve: function_
                 variable::parameters(n,t,_v) => {(n,t)},
                 variable::name(n) => {(n,Type::unknown(0))},
             };
-            let vaTy = varChecker(na, unbox(va), check, varcheck, currentid);
+            let vaTy = varChecker(oldna.clone(), unbox(va), check, varcheck, currentid);
             if vaTy != vartype {
                 panic!("Incorrect type: function_a_callChecker");
             }
+            createLocalVar(na.clone(),unbox(varname.clone()),vaTy.clone(),check,varcheck,currentid);
             return vaTy;
         }
         function_arguments_call::bx(b) => {
@@ -457,10 +458,11 @@ fn function_a_callChecker(na: String, fa: function_arguments_call, ve: function_
                 variable::parameters(n,t,_v) => {(n,t)},
                 variable::name(n) => {(n,Type::unknown(0))},
             };
-            let ty = listChecker(na.clone(), unbox(b), check, varcheck, currentid);
-            if ty != vartype {
+            let ty = listChecker(oldna.clone(), unbox(b), check, varcheck, currentid);
+            if ty.clone() != vartype.clone() {
                 panic!("Incorrect type: function_a_callChecker");
             }
+            createLocalVar(na.clone(),unbox(varname.clone()),ty.clone(),check,varcheck,currentid);
             return ty;
         }
         function_arguments_call::function(fu) => {
@@ -478,9 +480,10 @@ fn function_a_callChecker(na: String, fa: function_arguments_call, ve: function_
                 },
                 _ => panic!("A declare was placed in a function call: function_a_callChecker"),    
             };
-            if futy != vartype {
+            if futy.clone() != vartype.clone() {
                 panic!("Incorrect type: function_a_callChecker");
             }
+            createLocalVar(na.clone(),unbox(varname.clone()),futy.clone(),check,varcheck,currentid);
             return futy;
         }
     }

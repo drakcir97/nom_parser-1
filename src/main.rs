@@ -50,7 +50,8 @@ fn main() {
     let x = parserun(
     "
         fn main(input: i32) -> i32{
-            let testV:i32 = (1-asd(5))-1;
+            let testInp:i32 = 2;
+            let testV:i32 = (1-asd(testInp))-1;
         }
         fn asd(input: i32)->i32{
             return input;
@@ -94,7 +95,7 @@ fn main() {
 fn parserun(st: &str) {
     let parsed = parser::program_parser(st);
     println!("parsed: {:?} \n\n", parsed);
-    //typechecker::typechecker(parsed.clone());
+    typechecker::typechecker(parsed.clone());
     let result = interpreter::execute(parsed.clone());
 
     let iter = result.iter();
