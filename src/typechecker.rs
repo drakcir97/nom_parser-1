@@ -62,7 +62,7 @@ fn setVarType(na: String, ve: Box<Vec<hashvariable>>, check: &mut HashMap<String
     check.insert(na,hashchecker::st(ty.clone(),ve,fa.clone()));
 }
 
-//Sets return type of a function in hashmap.
+//Sets function_arguments of a function in hashmap.
 fn setInpType(na: String, fa: Box<function_arguments>, check: &mut HashMap<String, hashchecker>) {
     let check2 = &mut check.clone();
     let (ty,ve) = match getType(na.clone(), check2) {
@@ -159,6 +159,7 @@ pub fn typechecker(pg : Program) {
     for stmt in iter {
         listChecker("".to_string(),stmt.clone(), &mut check, &mut varcheck, &mut currentid); //Loop through and check all types.
     }
+    println!("{}", unbox(nm)+" passed typechecker!")
 }
 
 //Takes a struct and checks if the operand matches the left and right hand side. That is, if you try to add a integer and bool it will panic.
@@ -370,7 +371,7 @@ fn functionChecker(na: String, fu: function, check: &mut HashMap<String, hashche
             return ret;
         },
         function::parameters_def(funame,args,ty,ele) => {
-            //setReturnType(unbox(funame.clone()), Box::new(ty.clone()), check); //Add type to hashmap for later use in returnChecker
+            setReturnType(unbox(funame.clone()), Box::new(ty.clone()), check); //Add type to hashmap for later use in returnChecker
             function_eChecker(unbox(funame.clone()), unbox(ele), check, varcheck, currentid);
             return ty;
         },
