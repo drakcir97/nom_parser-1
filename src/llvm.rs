@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 use crate::enums::*;
 
 extern crate inkwell;
