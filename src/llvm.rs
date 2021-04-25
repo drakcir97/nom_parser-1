@@ -42,6 +42,7 @@ struct CodeGen<'ctx> {
     mut state: HashMap<String, hashstate> = HashMap::new(),
 
     mut mem: HashMap<String, PointerValue<'ctx>>hMap::new(), 
+    //Mem should be sorted on function name and contain a second hashmap that actually stores the variables under name with the pointer. 2021-04-25
 
     //mut currentid: i32 = 1,
 }
@@ -68,7 +69,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
     fn allocate_pointer(&mut self, na: String, is_bool: bool) -> PointerValue<'ctx> {
         let builder = self.context.create_builder();
-        let entry = self.fn
+        //let entry = self.fn
     }
 
     fn functionDeclare(&mut self, ls: List) {
@@ -442,53 +443,30 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
 
     //Use self.builder.build_return(Some(&var)) to return only value, no need to memory and local vars and state. Should be a lot smaller after everything is removed.
-    fn compile_return(&mut self, functionname: Box<String>, var_val: variable_value) {
-        let st2: &mut HashMap<String, hashstate> = &mut state.clone();
-        let fnstate = getState(*functionname.clone(),st2);
-        match fnstate {
+    fn compile_return(&mut self, functionname: Box<String>, var_val: variable_value) -> (InstructionValue<'ctx>, bool) {
+        match self.state.get(*functionname.clone()) {
             hashstate::state(_st,vars,fu,line) => {
                 match var_val {
                     variable_value::Boolean(b) => {
                         let temp = hashdata::valuebool(b);
-                        let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                        let hashdata_ret = hashdata::address(addressOfTemp);
-                        let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
-                        changeState(unbox(functionname.clone()),temp,state);
+                        let st = hashstate::state(Box::new(functionstate::Returned(Box::new(temp))),vars.clone(),fu.clone(),line.clone());
+                        self.state.insert(*functionname.clone(),st);
+                        //return self.builder.build_return(Some(b),true);
                     },
                     variable_value::Number(n) => {
                         let temp = hashdata::valuei32(n);
-                        let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                        let hashdata_ret = hashdata::address(addressOfTemp);
-                        let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
-                        changeState(unbox(functionname.clone()),temp,state);
+                        let st = hashstate::state(Box::new(functionstate::Returned(Box::new(temp))),vars.clone(),fu.clone(),line.clone());
+                        self.state.insert(*functionname.clone(),st);
                     },
                     variable_value::variable(v) => {
                         match unbox(v) {
                             variable::name(n) => {
                                 let varname = unbox(n);
-                                let variab = getLocalVariable(unbox(functionname.clone()),varname,state);
-                                match variab {
-                                    hashvariable::var(_na,ad) => {
-                                        let hdata = getFromMemory(ad,addressmap);
-                                        match hdata {
-                                            hashdata::address(_a) => {
-                                                let untangledData = getFromAddressHashdata(hdata,addressmap);
-                                                let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(untangledData))),vars.clone(),fu.clone(),line.clone());
-                                                changeState(unbox(functionname.clone()),temp,state);
-                                            },
-                                            hashdata::valuebool(_va__b) => {
-                                                let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hdata))),vars.clone(),fu.clone(),line.clone());
-                                                changeState(unbox(functionname.clone()),temp,state);
-                                            },
-                                            hashdata::valuei32(_va__i) => {
-                                                let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hdata))),vars.clone(),fu.clone(),line.clone());
-                                                changeState(unbox(functionname.clone()),temp,state);
-                                            },
-                                            _ => panic!("This is not supposed to happen.... return_execute"),
-                                        };
-                                    },
-                                    _ => panic!("Local variable does not exist: return_execute"),
-                                };
+                                let ptr = self.get_var(varname);
+                                let val = self.builder.build_load(ptr,varname).into_int_value();
+                                let temp = hashdata::valuei32(val);
+                                let st = hashstate::state(Box::new(functionstate::Returned(Box::new(temp))),vars.clone(),fu.clone(),line.clone());
+                                self.state.insert(*functionname.clone(),st);
                             },
                             _ => panic!("Return does not support this type: return_execute"),
                         };
@@ -497,10 +475,10 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         match unbox(va) {
                             List::var(v) => {
                                 let varval = variable_value::variable(Box::new(v));
-                                return_execute(functionname.clone(), varval, state, idmap, addressmap, currentid);
+                                self.compile_return(functionname.clone(), varval);
                             },
                             List::Cons(bl, opr, br) => {
-                                let consval = cons_execute(unbox(functionname.clone()), bl, opr, br, state, idmap, addressmap, currentid);
+                                let consval = self.compile_cons(unbox(functionname.clone()), bl, opr, br);
                                 let hashdata_ret = match consval {
                                     List::Num(n) => {
                                         hashdata::valuei32(n)
@@ -511,17 +489,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                     _ => panic!(""),
                                 }; 
                                 let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
-                                changeState(unbox(functionname.clone()),temp,state);
+                                self.state.insert(*functionname.clone(),temp);
                             },
                             List::boolean(b) => {
                                 let hashdata_ret = hashdata::valuebool(b);
                                 let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
-                                changeState(unbox(functionname.clone()),temp,state);
+                                self.state.insert(*functionname.clone(),temp);
                             },
                             List::Num(n) => {
                                 let hashdata_ret = hashdata::valuei32(n);
                                 let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
-                                changeState(unbox(functionname.clone()),temp,state);
+                                self.state.insert(*functionname.clone(),temp);
                             },
                             _ => panic!("Return does not support this type: return_execute"),
                         }
@@ -534,55 +512,52 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     }
 
     fn compile_function_elements(&mut self, functionname: Box<String>, fe: function_elements) {
-        let _ln = increaseLineForFunction(unbox(functionname.clone()),state);
         match fe {
             function_elements::ele_list(v,w)=>{
                 let ele1: function_elements = unbox(v);
                 let ele2: function_elements = unbox(w);
-                let res1 = function_elements_execute(functionname.clone(), ele1, state, idmap, addressmap, currentid);
-                let res2 = function_elements_execute(functionname.clone(), ele2, state, idmap, addressmap, currentid);
+                let res1 = self.compile_function_elements(functionname.clone(), ele1);
+                let res2 = self.compile_function_elements(functionname.clone(), ele2);
             },
             function_elements::boxs(v)=>{
                 let box_cont: variable = unbox(v);
-                var_execute(functionname, box_cont, state, idmap, addressmap, currentid); 
+                self.compile_var(functionname, box_cont); 
             },
             function_elements::if_box(v)=>{
                 let box_cont= unbox(v);
-                if_execute(functionname, box_cont, state, idmap, addressmap, currentid);
+                self.compile_if(functionname, box_cont);
             },
             function_elements::List(v)=>{
-                execute_List(unbox(functionname), v, state, idmap, addressmap, currentid);
+                self.compile_list(unbox(functionname), v);
             },
             function_elements::function(v)=>{
-                function_execute(unbox(functionname), v, state, idmap, addressmap, currentid);
+                self.compile_function(unbox(functionname), v);
             },
             function_elements::variable(v)=>{
-                var_execute(functionname, v, state, idmap, addressmap, currentid);
+                self.compile_var(functionname, v);
             },
             function_elements::if_enum(v)=>{
-                if_execute(functionname, v, state, idmap, addressmap, currentid);
+                self.compile_if(functionname, vall);
             },
             function_elements::while_enum(v) => {
-                while_execute(functionname, v, state, idmap, addressmap, currentid);
+                self.compile_while(functionname, v);
             },
             function_elements::return_val(v) => {
-                return_execute(functionname,v,state,idmap,addressmap,currentid);
+                self.compile_return(functionname,v);
             },
         }
     }
 
     fn compile_function_arguments_call_execute(&mut self, functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>) {
-        let st2: &mut HashMap<String, hashstate> = &mut state.clone();
-        let fnstate = getState(*functionname.clone(), st2);
-        match fnstate {
+        match self.state.get(*functionname.clone()) {
             hashstate::state(_st,v,fu,line) => {
                 let temp = hashstate::state(Box::new(functionstate::Running),v.clone(),fu.clone(),line.clone());
-                changeState(unbox(functionname.clone()),temp,state);
+                self.state.insert(*functionname.clone(),temp);
                 match unbox(fu.clone()) {
                     function::parameters_def(_na,fuag,_ty,ele) => {
                         let functionargs = fuag.clone();
-                        function_arguments_call_declare(functionname.clone(), oldfunctionname.clone(), args, functionargs, state, idmap, addressmap, currentid);
-                        function_elements_execute(functionname.clone(),unbox(ele.clone()),state,idmap,addressmap,currentid);
+                        self.compile_function_arguments_call_declare(functionname.clone(), oldfunctionname.clone(), args, functionargs);
+                        self.compile_function_elements(functionname.clone(),unbox(ele.clone()));
                     },
                     _ => panic!("Function stored incorrectly in mem: function_arguments_call_execute"),
                 };
@@ -603,8 +578,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                     _ => return panic!("Too many inputs given to function {:?} : function_arguments_call_declare",functionname.clone()),
                 };
                 let fal = Box::new(function_arguments::var(varl));
-                let _leftSide = function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),a1,fal,state,idmap,addressmap,currentid);
-                let _rightSide = function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),a2,far,state,idmap,addressmap,currentid);
+                let _leftSide = self.compile_function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),a1,fal);
+                let _rightSide = self.compile_function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),a2,far);
             },
             function_arguments_call::bx(bo) => {
                 let functionargs = match unbox(fuargs.clone()) {
@@ -619,25 +594,21 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 match unb {
                     List::var(v) => {
                         let newargs = Box::new(function_arguments_call::variable(Box::new(v)));
-                        function_arguments_call_declare(functionname.clone(), oldfunctionname.clone(), newargs, fuargs.clone(), state, idmap, addressmap, currentid);
+                        self.compile_function_arguments_call_declare(functionname.clone(), oldfunctionname.clone(), newargs, fuargs.clone());
                     },
                     List::boolean(b) => {
                         if vartype != Type::boolean {
                             panic!("Type mismatch in var: function_arguments_call_declare")
                         };
-                        let temp = hashdata::valuebool(b);
-                        let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                        let temp2 = hashvariable::var(unbox(varname),addressOfTemp);
-                        addLocalVariable(unbox(functionname.clone()), temp2, state);
+                        let ptr = self.allocate_pointer(varname,true);
+                        self.builder.build_store(ptr,b);
                     },
                     List::Num(n) => {
                         if vartype != Type::Integer {
                             panic!("Type mismatch in var: function_arguments_call_declare")
                         };
-                        let temp = hashdata::valuei32(n);
-                        let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                        let temp2 = hashvariable::var(unbox(varname),addressOfTemp);
-                        addLocalVariable(unbox(functionname.clone()), temp2, state);
+                        let ptr = self.allocate_pointer(varname,false);
+                        self.builder.build_store(ptr,n);
                     },
                     _ => (),
                 };
@@ -654,47 +625,34 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 match unbox(fu) {
                     function::parameters_call(na, ar) => {
                         //let st2: &mut HashMap<String, hashstate> = &mut state.clone();
-                        let fnstate = getState(unbox(functionname.clone()), state);
-                        match fnstate {
+                        match self.state.get(*functionname.clone()) {
                             hashstate::state(st,v,ele,line) => {
                                 let newstate = hashstate::state(Box::new(functionstate::Calling),v.clone(),ele.clone(),line.clone());
-                                changeState(unbox(functionname.clone()),newstate,state);
-                                function_arguments_call_execute(na.clone(), functionname.clone(), ar, state, idmap, addressmap, currentid);
+                                self.state.insert(*functionname.clone(),newstate);
+                                compile_function_arguments_call(na.clone(), functionname.clone(), ar);
                                 //Wait for state to change to Returned, and get value from memory. (functionstate::Returned(Box<hashdata::address/value>))
-                                let returnedState = getState(unbox(na.clone()),state);
+                                let returnedState = self.state.get(*na.clone());
                                 match returnedState {
                                     hashstate::state(st,_v,fu,_line) => {
                                         match unbox(st.clone()) {
                                             functionstate::Returned(v) => {
                                                 match unbox(v.clone()) {
                                                     hashdata::address(a) => {
-                                                        let ffrommem = getFromMemory(a, addressmap);
-                                                        let hdata = getFromAddressHashdata(ffrommem, addressmap);
-                                                        let ty = match hdata {hashdata::valuei32(_) => Type::Integer, _ => Type::boolean};
-                                                        if vartype != ty {
-                                                            panic!("Type mismatch in function call: function_arguments_call_declare")
-                                                        };
-                                                        let ad = addToMemory(0, hdata, idmap, addressmap, currentid);
-                                                        let varToAdd = hashvariable::var(unbox(varname),ad);
-                                                        addLocalVariable(unbox(functionname.clone()), varToAdd, state);
+                                                        panic!("Type mismatch in function call: function_arguments_call_declare");
                                                     },
                                                     hashdata::valuei32(v) => {
                                                         if vartype != Type::Integer {
                                                             panic!("Type mismatch in function call: function_arguments_call_declare")
                                                         };
-                                                        let hdata = hashdata::valuei32(v);
-                                                        let ad = addToMemory(0, hdata, idmap, addressmap, currentid);
-                                                        let varToAdd = hashvariable::var(unbox(varname),ad);
-                                                        addLocalVariable(unbox(functionname.clone()), varToAdd, state);
+                                                        let ptr = self.allocate_pointer(varname,false);
+                                                        self.builder.build_store(ptr,v);
                                                     },
                                                     hashdata::valuebool(v) => {
                                                         if vartype != Type::boolean {
                                                             panic!("Type mismatch in function call: function_arguments_call_declare")
                                                         };
-                                                        let hdata = hashdata::valuebool(v);
-                                                        let ad = addToMemory(0, hdata, idmap, addressmap, currentid);
-                                                        let varToAdd = hashvariable::var(unbox(varname),ad);
-                                                        addLocalVariable(unbox(functionname.clone()), varToAdd, state);
+                                                        let ptr = self.allocate_pointer(varname,true);
+                                                        self.builder.build_store(ptr,v);
                                                     },
                                                     _ => panic!("Previous function call returned nothing!: function_arguments_call_declare"),
                                                 }
@@ -729,39 +687,25 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 if vartype != Type::boolean {
                                     panic!("Type mismatch in var: function_arguments_call_declare")
                                 };
-                                let temp = hashdata::valuebool(b);
-                                let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                                let temp2 = hashvariable::var(unbox(varname),addressOfTemp);
-                                addLocalVariable(unbox(functionname.clone()), temp2, state);
+                                let ptr = self.allocate_pointer(varname,true);
+                                self.builder.build_store(ptr,b);
                             },
                             variable_value::Number(n) => {
                                 if vartype != Type::Integer {
                                     panic!("Type mismatch in var: function_arguments_call_declare")
                                 };
-                                let temp = hashdata::valuei32(n);
-                                let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
-                                let temp2 = hashvariable::var(unbox(varname),addressOfTemp);
-                                addLocalVariable(unbox(functionname.clone()), temp2, state);
+                                let ptr = self.allocate_pointer(varname,false);
+                                self.builder.build_store(ptr,n);
                             },
                             _ => panic!("temp"), //Might have to include more cases for variable_value here if needed.
                         };
                     },
                     variable::name(n) => {
                         let vnam = unbox(n);
-                        let hvar = getLocalVariable(unbox(oldfunctionname.clone()), vnam.clone(), state);
-                        let oldaddress = match hvar {
-                            hashvariable::var(oldna, oldad) => {oldad},
-                            _ => return panic!("No variable named {:?} in function {:?} found: function_arguments_call_declare",vnam.clone(),oldfunctionname.clone()),
-                        };
-                        let ffrommem = getFromMemory(oldaddress, addressmap);
-                        let hdata = getFromAddressHashdata(ffrommem, addressmap);
-                        let ty = match hdata {hashdata::valuei32(_) => Type::Integer, _ => Type::boolean};
-                        if vartype != ty {
-                            panic!("Type mismatch in prev local var: function_arguments_call_declare")
-                        };
-                        let ad = addToMemory(0, hdata, idmap, addressmap, currentid);
-                        let varToAdd = hashvariable::var(unbox(varname),ad);
-                        addLocalVariable(unbox(functionname.clone()), varToAdd, state);
+                        let ptr = self.get_var(vnam.clone());
+                        let val = self.builder.build_load(ptr,vnam.clone()).into_int_value();
+
+                        //Here the variable should be added to the current functions local variables. 2021-04-25
                     },
                     _ => panic!("Type not yet supported: function_arguments_call_declare"),
                 };
