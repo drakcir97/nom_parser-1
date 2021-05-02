@@ -41,18 +41,43 @@ struct CodeGen<'ctx> {
 
     mut state: HashMap<String, hashstate> = HashMap::new(),
 
-    mut mem: HashMap<String, PointerValue<'ctx>>hMap::new(), 
+    mut mem: HashMap<String, HashMap<String, PointerValue<'ctx>>> = HashMap::new(), 
     //Mem should be sorted on function name and contain a second hashmap that actually stores the variables under name with the pointer. 2021-04-25
 
     //mut currentid: i32 = 1,
 }
 
 impl<'a, 'ctx> CodeGen<'a, 'ctx> {
-    fn get_var(&self, na: String) -> &PointerValue<'ctx> {
-        match self.mem.get(na) {
+    fn get_var(&self, functionname: String, na: String) -> &PointerValue<'ctx> {
+        mut hmapp: &HashMap<String, PointerValue<'ctx>> = match self.mem.get(functionname) {
             Some(v) => v,
             None => panic!("Not found in memory: get_var"),
         }
+        match hmapp.get(na) {
+            Some(v) => v,
+            None => panic!("Not found in memory: get_var"),
+        }
+    }
+
+    fn get_hashmap(&self, na: String) -> &HashMap<Strung, PointerValue<'ctx>> {
+        match self.mem.get(na) {
+            Some(v) => v,
+            None => panic!("Not found in memory: get_hashmap")
+        }
+    }
+
+    fn insert_var(&self, functionname: String, na; String, po: PointerValue<'ctx>) {
+        mut hmapp: &HashMap<String, PointerValue<'ctx>> = match self.mem.get(functionname) {
+            Some(v) => v,
+            None => panic!("Not found in memory: get_var"),
+        }
+        hmapp.insert(na,po);
+    }
+
+    //Used to create a new hashmap for local variables inside memory.
+    fn create_func(&self, functionname: String) {
+        mut mem: HashMap<String, PointerValue<'ctx>> = HashMap::new();
+        self.mem.insert(functionname,mem);
     }
 
     fn compile_list(&mut self, na: String, ls: List) -> List<'ctx> {
@@ -67,6 +92,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         };
     }
 
+    //TODO
     fn allocate_pointer(&mut self, na: String, is_bool: bool) -> PointerValue<'ctx> {
         let builder = self.context.create_builder();
         //let entry = self.fn
@@ -79,7 +105,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                     function::parameters_def(na,ar,ty,ele) => {
                         let temp: Vec<hashvariable> = Vec::new();
                         let tempstring: String = unbox(na.clone());
-                        self.state.insert(tempstring,hashstate::state(Box::new(functionstate::Declared),Box::new(temp),Box::new(f.clone()),-1),state);
+                        self.state.insert(tempstring.clone(),hashstate::state(Box::new(functionstate::Declared),Box::new(temp),Box::new(f.clone()),-1),state);
+                        self.create_func(tempstring.clone());
                     },
                     _ => (),
                 };
@@ -322,15 +349,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         if ty != Type::boolean {
                             panic!("Type mismatch in var: var_execute")
                         };
-                        let ptr = self.allocate_pointer(na,true);
-                        self.builder.build_store(ptr,val);
+                        let ptr = self.allocate_pointer(na.clone(),true);
+                        self.builder.build_store(ptr.clone(),val);
+                        insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                     },
                     variable_value::Number(n) => {
                         if ty != Type::Integer {
                             panic!("Type mismatch in var: var_execute")
                         };
-                        let ptr = self.allocate_pointer(na,false);
-                        self.builder.build_store(ptr,val);
+                        let ptr = self.allocate_pointer(na.clone(),false);
+                        self.builder.build_store(ptr.clone(),val);
+                        insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                     },
                     variable_value::boxs(b) => {
                         let ls = unbox(b);
@@ -339,15 +368,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 if ty != Type::Integer {
                                     panic!("Type mismatch in var: var_execute")
                                 };
-                                let ptr = self.allocate_pointer(na,false);
-                                self.builder.build_store(ptr,val);
+                                let ptr = self.allocate_pointer(na.clone(),false);
+                                self.builder.build_store(ptr.clone(),val);
+                                insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                             },
                             List::boolean(b) => {
                                 if ty != Type::boolean {
                                     panic!("Type mismatch in var: var_execute")
                                 };
-                                let ptr = self.allocate_pointer(na,true);
-                                self.builder.build_store(ptr,val);
+                                let ptr = self.allocate_pointer(na.clone(),true);
+                                self.builder.build_store(ptr.clone(),val);
+                                insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                             },
                             List::var(v) => {
                                 let varval = var_execute(functionname.clone(),v , state, idmap, addressmap, currentid);
@@ -356,15 +387,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                         if ty != Type::Integer {
                                             panic!("Type mismatch in var: var_execute")
                                         };
-                                        let ptr = self.allocate_pointer(na,false);
-                                        self.builder.build_store(ptr,val);
+                                        let ptr = self.allocate_pointer(na.clone(),false);
+                                        self.builder.build_store(ptr.clone(),val);
+                                        insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                                     },
                                     List::boolean(b) => {
                                         if ty != Type::boolean {
                                             panic!("Type mismatch in var: var_execute")
                                         };
-                                        let ptr = self.allocate_pointer(na,true);
-                                        self.builder.build_store(ptr,val);
+                                        let ptr = self.allocate_pointer(na.clone(),true);
+                                        self.builder.build_store(ptr.clone(),val);
+                                        insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                                     },
                                     _ => (),
                                 };
@@ -376,15 +409,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                         if ty != Type::Integer {
                                             panic!("Type mismatch in var: var_execute")
                                         };
-                                        let ptr = self.allocate_pointer(na,false);
-                                        self.builder.build_store(ptr,val);
+                                        let ptr = self.allocate_pointer(na.clone(),false);
+                                        self.builder.build_store(ptr.clone(),val);
+                                        insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                                     },
                                     List::boolean(b) => {
                                         if ty != Type::boolean {
                                             panic!("Type mismatch in var: var_execute")
                                         };
-                                        let ptr = self.allocate_pointer(na,true);
-                                        self.builder.build_store(ptr,val);
+                                        let ptr = self.allocate_pointer(na.clone(),true);
+                                        self.builder.build_store(ptr.clone(),val);
+                                        insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                                     },
                                     _ => (),
                                 };
@@ -396,15 +431,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                         if ty != Type::Integer {
                                             panic!("Type mismatch in var: var_execute")
                                         };
-                                        let ptr = self.allocate_pointer(na,false);
-                                        self.builder.build_store(ptr,val);
+                                        let ptr = self.allocate_pointer(na.clone(),false);
+                                        self.builder.build_store(ptr.clone(),val);
+                                        insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                                     },
                                     List::boolean(b) => {
                                         if ty != Type::boolean {
                                             panic!("Type mismatch in var: var_execute")
                                         };
-                                        let ptr = self.allocate_pointer(na,true);
-                                        self.builder.build_store(ptr,val);
+                                        let ptr = self.allocate_pointer(na.clone(),true);
+                                        self.builder.build_store(ptr.clone(),val);
+                                        insert_var(&self, *functionname.clone(), na.clone(), ptr.clone());
                                     },
                                     _ => (),
                                 };
@@ -416,7 +453,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 return List::Num(0);
             },
             variable::name(v)=>{ // Access local var with same name and return it.
-                let ptr = self.get_var(v);
+                let ptr = self.get_var(functionname.clone() ,v);
                 return self.builder.build_load(ptr,v).into_int_value();
             },
         };
@@ -441,9 +478,9 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
-
+    //Used to return  -> (InstructionValue<'ctx>, bool)
     //Use self.builder.build_return(Some(&var)) to return only value, no need to memory and local vars and state. Should be a lot smaller after everything is removed.
-    fn compile_return(&mut self, functionname: Box<String>, var_val: variable_value) -> (InstructionValue<'ctx>, bool) {
+    fn compile_return(&mut self, functionname: Box<String>, var_val: variable_value) {
         match self.state.get(*functionname.clone()) {
             hashstate::state(_st,vars,fu,line) => {
                 match var_val {
@@ -462,7 +499,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         match unbox(v) {
                             variable::name(n) => {
                                 let varname = unbox(n);
-                                let ptr = self.get_var(varname);
+                                let ptr = self.get_var(functionname.clone(), varname);
                                 let val = self.builder.build_load(ptr,varname).into_int_value();
                                 let temp = hashdata::valuei32(val);
                                 let st = hashstate::state(Box::new(functionstate::Returned(Box::new(temp))),vars.clone(),fu.clone(),line.clone());
@@ -600,15 +637,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         if vartype != Type::boolean {
                             panic!("Type mismatch in var: function_arguments_call_declare")
                         };
-                        let ptr = self.allocate_pointer(varname,true);
-                        self.builder.build_store(ptr,b);
+                        let ptr = self.allocate_pointer(varname.clone(),true);
+                        self.builder.build_store(ptr.clone(),b);
+                        insert_var(&self, *functionname.clone(), varname.clone(), ptr.clone());
                     },
                     List::Num(n) => {
                         if vartype != Type::Integer {
                             panic!("Type mismatch in var: function_arguments_call_declare")
                         };
-                        let ptr = self.allocate_pointer(varname,false);
-                        self.builder.build_store(ptr,n);
+                        let ptr = self.allocate_pointer(varname.clone(),false);
+                        self.builder.build_store(ptr.clone(),b);
+                        insert_var(&self, *functionname.clone(), varname.clone(), ptr.clone());
                     },
                     _ => (),
                 };
@@ -644,15 +683,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                                         if vartype != Type::Integer {
                                                             panic!("Type mismatch in function call: function_arguments_call_declare")
                                                         };
-                                                        let ptr = self.allocate_pointer(varname,false);
-                                                        self.builder.build_store(ptr,v);
+                                                        let ptr = self.allocate_pointer(varname.clone(),false);
+                                                        self.builder.build_store(ptr.clone(),b);
+                                                        insert_var(&self, *functionname.clone(), varname.clone(), ptr.clone());
                                                     },
                                                     hashdata::valuebool(v) => {
                                                         if vartype != Type::boolean {
                                                             panic!("Type mismatch in function call: function_arguments_call_declare")
                                                         };
-                                                        let ptr = self.allocate_pointer(varname,true);
-                                                        self.builder.build_store(ptr,v);
+                                                        let ptr = self.allocate_pointer(varname.clone(),true);
+                                                        self.builder.build_store(ptr.clone(),b);
+                                                        insert_var(&self, *functionname.clone(), varname.clone(), ptr.clone());
                                                     },
                                                     _ => panic!("Previous function call returned nothing!: function_arguments_call_declare"),
                                                 }
@@ -687,25 +728,28 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 if vartype != Type::boolean {
                                     panic!("Type mismatch in var: function_arguments_call_declare")
                                 };
-                                let ptr = self.allocate_pointer(varname,true);
-                                self.builder.build_store(ptr,b);
+                                let ptr = self.allocate_pointer(varname.clone(),true);
+                                self.builder.build_store(ptr.clone(),b);
+                                insert_var(&self, *functionname.clone(), varname.clone(), ptr.clone());
                             },
                             variable_value::Number(n) => {
                                 if vartype != Type::Integer {
                                     panic!("Type mismatch in var: function_arguments_call_declare")
                                 };
-                                let ptr = self.allocate_pointer(varname,false);
-                                self.builder.build_store(ptr,n);
+                                let ptr = self.allocate_pointer(varname.clone(),false);
+                                self.builder.build_store(ptr.clone(),b);
+                                insert_var(&self, *functionname.clone(), varname.clone(), ptr.clone());
                             },
                             _ => panic!("temp"), //Might have to include more cases for variable_value here if needed.
                         };
                     },
                     variable::name(n) => {
                         let vnam = unbox(n);
-                        let ptr = self.get_var(vnam.clone());
+                        let ptr = self.get_var(functionname.clone(), vnam.clone());
                         let val = self.builder.build_load(ptr,vnam.clone()).into_int_value();
 
                         //Here the variable should be added to the current functions local variables. 2021-04-25
+                        insert_var(&self, *functionname.clone(), vnam.clone(), ptr.clone());
                     },
                     _ => panic!("Type not yet supported: function_arguments_call_declare"),
                 };
