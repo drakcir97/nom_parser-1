@@ -5,6 +5,7 @@ mod enums;
 mod interpreter;
 mod parser;
 mod typechecker;
+mod llvm;
 
 fn main() {
     //let k = put_in_box("-3");
@@ -102,4 +103,6 @@ fn parserun(st: &str) {
     for line in iter {
         println!("Program state \n\n {:?}", line);
     }
+
+    llvm::execute(parsed.clone());
 }
