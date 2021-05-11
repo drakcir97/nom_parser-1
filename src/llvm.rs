@@ -118,7 +118,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
-    fn getState(function: String) -> &hashstate {
+    fn getState(&self, function: String) -> &hashstate {
         let result = self.state.get(&function);
         match result {
             Some(val) => return val,
@@ -140,14 +140,14 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         self.mem.insert(functionname,mem);
     }
 
-    fn compile_list(&mut self, functionname: String, ls: List) -> List {
+    fn compile_list(&mut self, functionname: String, ls: List) -> IntValue<'ctx> {
         match ls{
-            List::paran(v) => {self.compile_list(functionname.clone(), unbox(v))},
-            List::Cons(v,w,x) => {self.compile_cons(functionname.clone(),v,w,x)},
-            List::Num(v) => {return ls},
-            List::boolean(v)=>{return ls},
-            List::func(fu) => {},
-            List::var(v) => {self.compile_var(Box::new(functionname.clone()), v)},
+            List::paran(v) => {return self.compile_list(functionname.clone(), unbox(v))},
+            List::Cons(v,w,x) => {return self.compile_cons(functionname.clone(),v,w,x)},
+            List::Num(v) => {return self.cast_int(v)},
+            List::boolean(v)=>{return self.cast_bool(v)},
+            List::func(fu) => {return self.cast_int(0)},
+            List::var(v) => {return self.compile_var(Box::new(functionname.clone()), v)},
             _ => panic!("Something went wrong: execute_List"),
         };
     }
@@ -155,11 +155,11 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     //TODO
     fn allocate_pointer(&mut self, functionname: String, na: String, is_bool: bool) -> PointerValue<'ctx> {
         let builder = self.context.create_builder();
-        let entry = self.fn_value().get_first_basic_block().unwrap();
-        match entry.get_first_instruction() {
-            Some(f_ins) => builder.position_before(&f_ins),
-            None => builder.position_at_end(entry),
-        }
+        //let entry = self.fn_value().get_first_basic_block().unwrap();
+        //match entry.get_first_instruction() {
+        //    Some(f_ins) => builder.position_before(&f_ins),
+        //    None => builder.position_at_end(entry),
+        //}
         let pa: PointerValue;
 
         if is_bool {
@@ -190,230 +190,64 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     }
 
     //CHange return statements to use builder istead, not needed to chech for logic ourselves.
-    fn compile_cons(&mut self, functionname: String, l: Box<List>, oper: op ,r:  Box<List>) -> List {
+    fn compile_cons(&mut self, functionname: String, l: Box<List>, oper: op ,r:  Box<List>) -> IntValue<'ctx> {
         let expr = match oper{
             op::add => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_int_add(vall,valr,"add");
             },
     
             op::sub => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_int_sub(vall, valr, "sub");
             },
     
             op::div => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_int_unsigned_div(vall,valr,"div");
             },
     
             op::res => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
+                let vall= self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_int_add(vall,valr,"NOT IMPLEMENTED");
             },
             op::mult => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_int_mul(vall,valr,"mul");
             },
             op::less => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::boolean(n) => {
-                        if n == true {
-                            1
-                        } else {
-                            0
-                        }
-                    },
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::boolean(n) => {
-                        if n == true {
-                            1
-                        } else {
-                            0
-                        }
-                    },
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_int_compare(IntPredicate::ULT,vall,valr,"Lesser than");
             },
             op::greater => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::boolean(n) => {
-                        if n == true {
-                            1
-                        } else {
-                            0
-                        }
-                    },
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::boolean(n) => {
-                        if n == true {
-                            1
-                        } else {
-                            0
-                        }
-                    },
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
-                return self.build_int_compare(IntPredicate::UGT, vall, valr, "Greater than")
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
+                return self.builder.build_int_compare(IntPredicate::UGT, vall, valr, "Greater than")
             },
             op::lessEqual => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::boolean(n) => {
-                        if n == true {
-                            1
-                        } else {
-                            0
-                        }
-                    },
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::boolean(n) => {
-                        if n == true {
-                            1
-                        } else {
-                            0
-                        }
-                    },
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_int_compare(IntPredicate::ULE,vall,valr,"Lesser or equal");
             },
             op::greatEqual => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::boolean(n) => {
-                        if n == true {
-                            1
-                        } else {
-                            0
-                        }
-                    },
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::boolean(n) => {
-                        if n == true {
-                            1
-                        } else {
-                            0
-                        }
-                    },
-                    List::Num(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_int(vall);
-                let valr = self.cast_int(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_int_compare(IntPredicate::UGE,vall,valr,"Greater or equal");
             },
             op::and => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::boolean(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::boolean(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_bool(vall);
-                let valr = self.cast_bool(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_and(vall, valr, "and")
             },
             op::or => {
-                let llist: List = self.compile_list(functionname.clone(), unbox(l));
-                let rlist: List = self.compile_list(functionname.clone(), unbox(r));
-                let vall = match llist {
-                    List::boolean(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let valr = match rlist {
-                    List::boolean(n) => {n},
-                    _ => {panic!("Type mismatch : compile_cons")},
-                };
-                let vall = self.cast_bool(vall);
-                let valr = self.cast_bool(valr);
+                let vall = self.compile_list(functionname.clone(), unbox(l));
+                let valr = self.compile_list(functionname.clone(), unbox(r));
                 return self.builder.build_or(vall, valr, "or");
             },
             
@@ -437,7 +271,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     }
 
     //Removed check in memory so now only one match for everything, simplify memory to just include addressmap. Should make fetching easier too.
-    fn compile_var(&mut self, functionname: Box<String>, variable_var: variable) -> List {
+    fn compile_var(&mut self, functionname: Box<String>, variable_var: variable) -> IntValue<'ctx> {
         match variable_var{
             variable::parameters(na,ty,val) => {
                 match unbox(val) {
@@ -482,81 +316,27 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                             },
                             List::var(v) => {
                                 let varval = self.compile_var(functionname.clone(),v);
-                                match varval.clone() {
-                                    List::Num(n) => {
-                                        if ty != Type::Integer {
-                                            panic!("Type mismatch in var: compile_var")
-                                        };
-                                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
-                                        let n = self.cast_int(n);
-                                        self.builder.build_store(ptr.clone(),n);
-                                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                    },
-                                    List::boolean(b) => {
-                                        if ty != Type::boolean {
-                                            panic!("Type mismatch in var: compile_var")
-                                        };
-                                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
-                                        let b = self.cast_bool(b);
-                                        self.builder.build_store(ptr.clone(),b);
-                                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                    },
-                                    _ => (),
-                                };
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                                self.builder.build_store(ptr.clone(),varval);
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                             },
                             List::Cons(lli,op,rli) => {
                                 let val = self.compile_cons(*functionname.clone(), lli, op, rli);
-                                match val.clone() {
-                                    List::Num(n) => {
-                                        if ty != Type::Integer {
-                                            panic!("Type mismatch in var: compile_var")
-                                        };
-                                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
-                                        let n = self.cast_int(n);
-                                        self.builder.build_store(ptr.clone(),n);
-                                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                    },
-                                    List::boolean(b) => {
-                                        if ty != Type::boolean {
-                                            panic!("Type mismatch in var: compile_var")
-                                        };
-                                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
-                                        let b = self.cast_bool(b);
-                                        self.builder.build_store(ptr.clone(),b);
-                                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                    },
-                                    _ => (),
-                                };
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                                self.builder.build_store(ptr.clone(),val);
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                             },
                             List::func(fu) => {
                                 let val = self.compile_list(unbox(functionname.clone()), ls.clone());
-                                match val.clone() {
-                                    List::Num(n) => {
-                                        if ty != Type::Integer {
-                                            panic!("Type mismatch in var: compile_var")
-                                        };
-                                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
-                                        let n = self.cast_int(n);
-                                        self.builder.build_store(ptr.clone(),newargs);
-                                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                    },
-                                    List::boolean(b) => {
-                                        if ty != Type::boolean {
-                                            panic!("Type mismatch in var: compile_var")
-                                        };
-                                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
-                                        let b = self.cast_bool(b);
-                                        self.builder.build_store(ptr.clone(),b);
-                                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                    },
-                                    _ => (),
-                                };
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                                self.builder.build_store(ptr.clone(),val);
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                             },
                             _ => (),
                         };
                     },
                 };
-                return List::Num(0);
+                return self.cast_int(0);
             },
             variable::name(v)=>{ // Access local var with same name and return it.
                 let ptr = self.get_var(*functionname.clone(), *v);
@@ -569,7 +349,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         let (ifst, if_body) = match if_e{
             if_enum::condition(v,w)=>(v,w)
         };
-        if self.compile_cons(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0)))  != List::boolean(false) {
+        if (assert_eq!(self.compile_cons(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0))), self.cast_int(1)))   {
             self.compile_function_elements(functionname.clone(), unbox(if_body));
             
         }
@@ -579,7 +359,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         let (while_statement, while_body) =  match while_e{
             while_enum::condition(v,w)=>(v,w),
         };
-        while self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0))) != List::boolean(false) {
+        let test = self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0)));
+        while (assert_eq!(test, self.cast_int(1))){
             self.compile_function_elements(functionname.clone(), unbox(while_body.clone()));
         }
     }
@@ -587,7 +368,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     //Used to return  -> (InstructionValue<'ctx>, bool)
     //Use self.builder.build_return(Some(&var)) to return only value, no need to memory and local vars and state. Should be a lot smaller after everything is removed.
     fn compile_return(&mut self, functionname: Box<String>, var_val: variable_value) {
-        let fnstate = getState(functionname.clone())
+        let fnstate = self.getState(*functionname.clone());
         match fnstate {
             hashstate::state(_st,vars,fu,line) => {
                 match var_val {
@@ -623,15 +404,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                             },
                             List::Cons(bl, opr, br) => {
                                 let consval = self.compile_cons(unbox(functionname.clone()), bl, opr, br);
-                                let hashdata_ret = match consval {
-                                    List::Num(n) => {
-                                        hashdata::valuei32(n)
-                                    },
-                                    List::boolean(n) => {
-                                        hashdata::valuebool(n)
-                                    },
-                                    _ => panic!(""),
-                                }; 
+                                let data = consval.into_int_value();
+                                let hashdata_ret = hashdata::valuei32(data);
                                 let temp = hashstate::state(Box::new(functionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
                                 self.state.insert(*functionname.clone(),temp);
                             },
@@ -693,7 +467,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     }
 
     fn compile_function_arguments_call_execute(&mut self, functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>) {
-        let st = getState(functionname.clone());
+        let st = self.getState(*functionname.clone());
         match st {
             hashstate::state(_st,v,fu,line) => {
                 let temp = hashstate::state(Box::new(functionstate::Running),v.clone(),fu.clone(),line.clone());
@@ -774,14 +548,14 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 match unbox(fu) {
                     function::parameters_call(na, ar) => {
                         //let st2: &mut HashMap<String, hashstate> = &mut state.clone();
-                        let fnstate = getState(functionname.clone());
+                        let fnstate = self.getState(*functionname.clone());
                         match fnstate {
                             hashstate::state(st,v,ele,line) => {
                                 let newstate = hashstate::state(Box::new(functionstate::Calling),v.clone(),ele.clone(),line.clone());
                                 self.state.insert(*functionname.clone(),newstate);
                                 self.compile_function_arguments_call_execute(na.clone(), functionname.clone(), ar);
                                 //Wait for state to change to Returned, and get value from memory. (functionstate::Returned(Box<hashdata::address/value>))
-                                let returnedState = getState(na.clone());
+                                let returnedState = self.getState(*na.clone());
                                 match returnedState {
                                     hashstate::state(st,_v,fu,_line) => {
                                         match unbox(st.clone()) {
