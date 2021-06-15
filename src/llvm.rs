@@ -83,11 +83,10 @@ struct CodeGen<'a, 'ctx> {
     builder: &'a Builder<'ctx>,
     module: &'a Module<'ctx>,
     execution_engine: &'a ExecutionEngine<'ctx>,
+    fn_value_opt: Option<FunctionValue<'ctx>>,
     //Mem should be sorted on function name and contain a second hashmap that actually stores the variables under name with the pointer. 2021-04-25
 
-    state: HashMap<String, llvmhashstate<'ctx>>,
-
-    mem: HashMap<String, HashMap<String, PointerValue<'ctx>>>,
+    var: HashMap<String, PointerValue<'ctx>>,
 
     //mut currentid: i32 = 1,
 }
@@ -109,19 +108,12 @@ pub fn execute(pg: Program) {
         builder: &builder,
         module: &module,
         execution_engine: &execution_engine,
-        state: HashMap::new(),
-        mem: HashMap::new(),
+        var: HashMap::new(),
     };
 
     //let mut state: HashMap<String, llvmhashstate> = HashMap::new();
 
     //let mut mem: HashMap<String, HashMap<String, PointerValue>> = HashMap::new();
-
-    let mut dec_iter = statements.iter();
-
-    for stmt in dec_iter {
-        codegen.functionDeclare(stmt.clone()); //Loop through and declare all functions into state.
-    }
 
     let mut iter = statements.iter(); 
 
@@ -131,7 +123,13 @@ pub fn execute(pg: Program) {
     //assert!(iter.is_ok());
 }
 
+//Memory changed to simplified version, next thing is change function calls and declares so that they use inkwell instead of our own architecture.
+//  - R 2021-06-15
+
 impl<'a, 'ctx> CodeGen<'a, 'ctx> {
+    fn fn_value(&self) -> FunctionValue<'ctx> {
+        self.fn_value_opt.unwrap()
+    }
     fn cast_int(&self, int: i32) -> IntValue<'ctx> {
         self.context.i32_type().const_int(int as u64, false)
     }
@@ -143,51 +141,15 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
-    fn get_var(&self, functionname: String, na: String, mem: HashMap<String, HashMap<String, PointerValue<'ctx>>>) -> &'ctx PointerValue<'ctx> {
-        let memtemp: HashMap<String, HashMap<String, PointerValue<'ctx>>> = mem.clone();
-        let mut hmapp: &HashMap<String, PointerValue<'ctx>> = match memtemp.get(&functionname) {
-            Some(v) => v,
-            None => panic!("Not found in memory: get_var"),
-        };
-        match hmapp.get(&na) {
+    fn get_var(&self, na: String) -> &PointerValue<'ctx> {
+        match self.var.get(na) {
             Some(v) => return v,
             None => panic!("Not found in memory: get_var"),
-        }
-    }
-
-    fn get_hashmap(&self, na: String, mem: HashMap<String, HashMap<String, PointerValue<'ctx>>>) -> &'ctx HashMap<String, PointerValue<'ctx>> {
-        let memtemp: HashMap<String, HashMap<String, PointerValue<'ctx>>> = mem.clone();
-        match memtemp.get(&na) {
-            Some(v) => return v,
-            None => panic!("Not found in memory: get_hashmap")
-        }
-    }
-
-    fn getState(&self, function: String, st: HashMap<String, llvmhashstate<'ctx>>) -> &llvmhashstate<'ctx> {
-        let sttemp: HashMap<String, llvmhashstate<'ctx>> = st.clone();
-        let result = sttemp.get(&function);
-        let temp = match result {
-            Some(val) => val,
-            None => panic!("Get state failed!: getState"),
         };
-        return temp;
     }
 
-    fn insert_var(&self, functionname: String, na: String, po: PointerValue<'ctx>,mem: &mut HashMap<String, HashMap<String, PointerValue<'ctx>>>) {
-        let hmapp = self.get_hashmap(functionname.clone(),self.mem.clone());
-        let mut nhmapp = hmapp.clone();
-        nhmapp.insert(na,po);
-        mem.insert(functionname.clone(),nhmapp.clone());
-    }
-
-    fn insert_state(&self, functionname: String, st: llvmhashstate<'ctx>, state: &mut HashMap<String, llvmhashstate<'ctx>>) {
-        state.insert(functionname,st);
-    }
-
-    //Used to create a new hashmap for local variables inside memory.
-    fn create_func(&self, functionname: String,mem: &mut HashMap<String, HashMap<String, PointerValue<'ctx>>>) {
-        let mut temp: HashMap<String, PointerValue<'ctx>> = HashMap::new();
-        mem.insert(functionname,temp);
+    fn insert_var(&self, functionname: String, na: String, pa: PointerValue<'ctx>) {
+        self.var.insert(na,pa);
     }
 
     fn compile_list(&mut self, functionname: String, ls: List) -> IntValue<'ctx> {
@@ -196,9 +158,15 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
             List::Cons(v,w,x) => {return self.compile_cons(functionname.clone(),v,w,x)},
             List::Num(v) => {return self.cast_int(v)},
             List::boolean(v)=>{return self.cast_bool(v)},
-            List::func(fu) => {return self.cast_int(0)},
             List::var(v) => {return self.compile_var(Box::new(functionname.clone()), v)},
             _ => panic!("Something went wrong: execute_List"),
+        };
+    }
+
+    fn compile_list_func(&mut self, functionname: String, ls: List) -> InstructionValue<'ctx> {
+        match ls {
+            List::func(fu) => {return self.compile_function(functionname.clone(),fu)},
+            _ => panic!("Something went wrong: compile_list_func"),
         };
     }
 
@@ -218,25 +186,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
             pa = builder.build_alloca(self.context.i32_type(), &na);
         }
 
-        self.insert_var(functionname.clone(),na.clone(),pa,&mut self.mem.clone());
+        //self.insert_var(functionname.clone(),na.clone(),pa);
         return pa;
-    }
-
-    fn functionDeclare(&mut self, ls: List) {
-        match ls {
-            List::func(f) => {
-                match f.clone() {
-                    function::parameters_def(na,ar,ty,ele) => {
-                        let temp: Vec<llvmhashvariable> = Vec::new();
-                        let tempstring: String = unbox(na.clone());
-                        self.insert_state(tempstring.clone(),llvmhashstate::state(Box::new(llvmfunctionstate::Declared),Box::new(temp),Box::new(f.clone()),-1),&mut self.state.clone());
-                        self.create_func(tempstring.clone(),&mut self.mem.clone());
-                    },
-                    _ => (),
-                };
-            },
-            _ => (),// Do nothing
-        }
     }
 
     //CHange return statements to use builder istead, not needed to chech for logic ourselves.
@@ -307,16 +258,16 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         return self.cast_int(0)
     }
 
-    fn compile_function(&mut self,functionname: String, func_var: function) {
+    fn compile_function(&mut self,functionname: String, func_var: function) -> InstructionValue<'ctx> {
         match func_var{
             function::parameters_def(na,_m,_n,_o)=>{
                 if unbox(na.clone()) == "main" { //Special case for main. Calls in when we find define in code. Ensures that it is always called.
                     let w = function_arguments_call::variable(Box::new(variable::name(Box::new("".to_string()))));
-                    self.compile_function_arguments_call_execute(na.clone(), na.clone(), Box::new(w));
+                    return self.compile_function_arguments_call_execute(na.clone(), na.clone(), Box::new(w));
                 }
             }, //Do nothing on define, since this is handled in functionDeclare, except for main.
             function::parameters_call(v,w)=>{
-                self.compile_function_arguments_call_execute(v.clone(), Box::new(functionname.clone()), w);
+                return self.compile_function_arguments_call_execute(v.clone(), Box::new(functionname.clone()), w);
             },
         };
     }
@@ -333,7 +284,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                         let b = self.cast_bool(b);
                         self.builder.build_store(ptr.clone(),b);
-                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone(),&mut self.mem.clone());
+                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                     },
                     variable_value::Number(n) => {
                         if ty != Type::Integer {
@@ -342,7 +293,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                         let n = self.cast_int(n);
                         self.builder.build_store(ptr.clone(),n);
-                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone(),&mut self.mem.clone());
+                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                     },
                     variable_value::boxs(b) => {
                         let ls = unbox(b);
@@ -354,7 +305,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 let n = self.cast_int(n);
                                 self.builder.build_store(ptr.clone(),n);
-                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone(),&mut self.mem.clone());
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                             },
                             List::boolean(b) => {
                                 if ty != Type::boolean {
@@ -363,25 +314,25 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                                 let b = self.cast_bool(b);
                                 self.builder.build_store(ptr.clone(),b);
-                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone(),&mut self.mem.clone());
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                             },
                             List::var(v) => {
                                 let varval = self.compile_var(functionname.clone(),v);
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.builder.build_store(ptr.clone(),varval);
-                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone(),&mut self.mem.clone());
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                             },
                             List::Cons(lli,op,rli) => {
                                 let val = self.compile_cons(*functionname.clone(), lli, op, rli);
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.builder.build_store(ptr.clone(),val);
-                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone(),&mut self.mem.clone());
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                             },
                             List::func(fu) => {
                                 let val = self.compile_list(unbox(functionname.clone()), ls.clone());
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.builder.build_store(ptr.clone(),val);
-                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone(),&mut self.mem.clone());
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                             },
                             _ => (),
                         };
@@ -390,7 +341,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 return self.cast_int(0);
             },
             variable::name(v)=>{ // Access local var with same name and return it.
-                let ptr = self.get_var(*functionname.clone(), *v.clone(),self.mem.clone());
+                let ptr = self.get_var(*v.clone());
                 return self.builder.build_load(*ptr,&v.clone()).into_int_value();
             },
         };
@@ -418,72 +369,53 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
     //Used to return  -> (InstructionValue<'ctx>, bool)
     //Use self.builder.build_return(Some(&var)) to return only value, no need to memory and local vars and state. Should be a lot smaller after everything is removed.
-    fn compile_return(&mut self, functionname: Box<String>, var_val: variable_value) {
-        let fnstate = self.getState(*functionname.clone(),&mut self.state.clone());
-        match fnstate {
-            llvmhashstate::state(_st,vars,fu,line) => {
-                match var_val {
-                    variable_value::Boolean(b) => {
+    fn compile_return(&mut self, functionname: Box<String>, var_val: variable_value) -> InstructionValue<'ctx> {
+        match var_val {
+            variable_value::Boolean(b) => {
+                let b = self.cast_bool(b);
+                return self.builder.build_return(Some(&b));
+            },
+            variable_value::Number(n) => {
+                let n = self.cast_int(n);
+                return self.builder.build_return(Some(&n));
+            },
+            variable_value::variable(v) => {
+                match unbox(v) {
+                    variable::name(n) => {
+                        let varname = unbox(n);
+                        let ptr = self.get_var(varname.clone());
+                        let val = self.builder.build_load(*ptr,&varname.clone()).into_int_value();
+                        return self.builder.build_return(Some(&val));
+                    },
+                    _ => panic!("Return does not support this type: return_execute"),
+                };
+            },
+            variable_value::boxs(va) => {
+                match unbox(va) {
+                    List::var(v) => {
+                        let varval = variable_value::variable(Box::new(v));
+                        return self.compile_return(functionname.clone(), varval);
+                    },
+                    List::Cons(bl, opr, br) => {
+                        let consval = self.compile_cons(unbox(functionname.clone()), bl, opr, br);
+                        return self.builder.build_return(Some(&consval));
+                    },
+                    List::boolean(b) => {
                         let b = self.cast_bool(b);
-                        let temp = llvmhashdata::value(b);
-                        let st = llvmhashstate::state(Box::new(llvmfunctionstate::Returned(Box::new(temp))),vars.clone(),fu.clone(),line.clone());
-                        self.insert_state(*functionname.clone(),st,&mut self.state.clone());
-                        //return self.builder.build_return(Some(b),true);
+                        return self.builder.build_return(Some(&b));
                     },
-                    variable_value::Number(n) => {
+                    List::Num(n) => {
                         let n = self.cast_int(n);
-                        let temp = llvmhashdata::value(n);
-                        let st = llvmhashstate::state(Box::new(llvmfunctionstate::Returned(Box::new(temp))),vars.clone(),fu.clone(),line.clone());
-                        self.insert_state(*functionname.clone(),st,&mut self.state.clone());
-                    },
-                    variable_value::variable(v) => {
-                        match unbox(v) {
-                            variable::name(n) => {
-                                let varname = unbox(n);
-                                let ptr = self.get_var(*functionname.clone(), varname.clone(),self.mem.clone());
-                                let val = self.builder.build_load(*ptr,&varname.clone()).into_int_value();
-                                let temp = llvmhashdata::value(val);
-                                let st = llvmhashstate::state(Box::new(llvmfunctionstate::Returned(Box::new(temp))),vars.clone(),fu.clone(),line.clone());
-                                self.insert_state(*functionname.clone(),st,&mut self.state.clone());
-                            },
-                            _ => panic!("Return does not support this type: return_execute"),
-                        };
-                    },
-                    variable_value::boxs(va) => {
-                        match unbox(va) {
-                            List::var(v) => {
-                                let varval = variable_value::variable(Box::new(v));
-                                self.compile_return(functionname.clone(), varval);
-                            },
-                            List::Cons(bl, opr, br) => {
-                                let consval = self.compile_cons(unbox(functionname.clone()), bl, opr, br);
-                                let hashdata_ret = llvmhashdata::value(consval);
-                                let temp = llvmhashstate::state(Box::new(llvmfunctionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
-                                self.insert_state(*functionname.clone(),temp,&mut self.state.clone());
-                            },
-                            List::boolean(b) => {
-                                let b = self.cast_bool(b);
-                                let hashdata_ret = llvmhashdata::value(b);
-                                let temp = llvmhashstate::state(Box::new(llvmfunctionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
-                                self.insert_state(*functionname.clone(),temp,&mut self.state.clone());
-                            },
-                            List::Num(n) => {
-                                let n = self.cast_int(n);
-                                let hashdata_ret = llvmhashdata::value(n);
-                                let temp = llvmhashstate::state(Box::new(llvmfunctionstate::Returned(Box::new(hashdata_ret))),vars.clone(),fu.clone(),line.clone());
-                                self.insert_state(*functionname.clone(),temp,&mut self.state.clone());
-                            },
-                            _ => panic!("Return does not support this type: return_execute"),
-                        }
+                        return self.builder.build_return(Some(&n));
                     },
                     _ => panic!("Return does not support this type: return_execute"),
                 }
             },
-            _ => panic!("Function does not exist: return execute"),
-        };
+            _ => panic!("Return does not support this type: return_execute"),
+        }
     }
 
-    fn compile_function_elements(&mut self, functionname: Box<String>, fe: function_elements) {
+    fn compile_function_elements(&mut self, functionname: Box<String>, fe: function_elements) -> InstructionValue<'ctx> {
         match fe {
             function_elements::ele_list(v,w)=>{
                 let ele1: function_elements = unbox(v);
@@ -515,12 +447,12 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 self.compile_while(functionname, v);
             },
             function_elements::return_val(v) => {
-                self.compile_return(functionname,v);
+                return self.compile_return(functionname,v);
             },
         }
     }
 
-    fn compile_function_arguments_call_execute(&mut self, functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>) {
+    fn compile_function_arguments_call_execute(&mut self, functionname: Box<String>, oldfunctionname: Box<String>, args: Box<function_arguments_call>) -> InstructionValue<'ctx> {
         let st = self.getState(*functionname.clone(),self.state.clone());
         match st {
             llvmhashstate::state(_st,v,fu,line) => {
@@ -530,7 +462,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                     function::parameters_def(_na,fuag,_ty,ele) => {
                         let functionargs = fuag.clone();
                         self.compile_function_arguments_call_declare(functionname.clone(), oldfunctionname.clone(), args, functionargs);
-                        self.compile_function_elements(functionname.clone(),unbox(ele.clone()));
+                        return self.compile_function_elements(functionname.clone(),unbox(ele.clone()));
                     },
                     _ => panic!("Function stored incorrectly in mem: function_arguments_call_execute"),
                 };
@@ -576,7 +508,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),true);
                         let b = self.cast_bool(b);
                         self.builder.build_store(ptr.clone(),b);
-                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone(),&mut self.mem.clone());
+                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                     },
                     List::Num(n) => {
                         if vartype != Type::Integer {
@@ -585,7 +517,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
                         let n = self.cast_int(n);
                         self.builder.build_store(ptr.clone(),n);
-                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone(),&mut self.mem.clone());
+                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                     },
                     _ => (),
                 };
@@ -613,7 +545,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                             llvmhashdata::value(v) => {
                                                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
                                                 self.builder.build_store(ptr.clone(),v);
-                                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone(),&mut self.mem.clone());
+                                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                                             },
                                             _ => panic!("Previous function call returned nothing!: function_arguments_call_declare"),
                                         }
@@ -648,7 +580,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),true);
                                 let b = self.cast_bool(b);
                                 self.builder.build_store(ptr.clone(),b);
-                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone(),&mut self.mem.clone());
+                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                             },
                             variable_value::Number(n) => {
                                 if vartype != Type::Integer {
@@ -657,18 +589,18 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
                                 let n = self.cast_int(n);
                                 self.builder.build_store(ptr.clone(),n);
-                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone(),&mut self.mem.clone());
+                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                             },
                             _ => panic!("temp"), //Might have to include more cases for variable_value here if needed.
                         };
                     },
                     variable::name(n) => {
                         let vnam = unbox(n);
-                        let ptr = self.get_var(*functionname.clone(), vnam.clone(),self.mem.clone());
+                        let ptr = self.get_var(vnam.clone());
                         let val = self.builder.build_load(*ptr,&vnam.clone()).into_int_value();
 
                         //Here the variable should be added to the current functions local variables. 2021-04-25
-                        self.insert_var(*functionname.clone(), vnam.clone(), ptr.clone(),&mut self.mem.clone());
+                        self.insert_var(*functionname.clone(), vnam.clone(), ptr.clone());
                     },
                     _ => panic!("Type not yet supported: function_arguments_call_declare"),
                 };
