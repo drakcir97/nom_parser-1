@@ -160,7 +160,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
             List::Num(v) => {return self.cast_int(v)},
             List::boolean(v)=>{return self.cast_bool(v)},
             List::func(fu) => {return self.compile_function_call(Box::new(functionname.clone()),fu)},
-            List::var(v) => {return self.compile_var(Box::new(functionname.clone()), v)},
+            List::var(v) => {return self.fetch_var(Box::new(functionname.clone()), v)},
             _ => panic!("Something went wrong: execute_List"),
         };
     }
@@ -255,27 +255,205 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
     //TODO update it for llvm, supposed to execute function without using caller function.
     fn compile_function(&mut self,functionname: String, func_var: function) -> InstructionValue<'ctx>{
-        match func_var{
-            function::parameters_def(na,_m,_n,_o)=>{
-                if unbox(na.clone()) == "main" { //Special case for main. Calls in when we find define in code. Ensures that it is always called.
-                    let w = function_arguments_call::variable(Box::new(variable::name(Box::new("".to_string()))));
-                    //return self.compile_function_call(na.clone(), na.clone(), Box::new(w));
-                }
+        let (na,args) = match func_var{
+            function::parameters_def(n,m,_n,_o)=>{
+                
             }, //Do nothing on define, since this is handled in functionDeclare, except for main.
             function::parameters_call(v,w)=>{
-                //return self.compile_function_call(v.clone(), Box::new(functionname.clone()), w);
+                (v,w)
             },
+        };
+
+        //Fetch function arguments and call fetch_func_types_dec
+
+        let deargs = fetch_func_types_dec()
+        let par_types = self.fetch_func_types_dec(functionname,deargs);
+        let fn_type = self.context.i32_type.fn_type(&par_types, false);
+        let function = self.module.add_function(&na, fn_type, None);
+        let basic_block = self.context.append_basic_block(function, &name);
+
+        self.fn_value_opt = Some(function);
+        self.builder.position_at_end(basic_block);
+
+        //Here the input to the function should be handled, check for correct number of inputs
+        //Then execute the function
+
+        //Fetch function from state, call new function_arguments_call_declare to sort out inputs to func
+    }
+
+    //Declares variables sent to a function through call and adds them to memeory. Handles nestled function calls.
+    //Takes function args to ensure that names and order is correct when declaring variables.
+    fn function_arguments_call_declare(functionname: Box<String>, args: Box<function_arguments_call>, fuargs: Box<function_arguments>) {
+        if unbox(functionname.clone()) == "main" { //If we are in main, declare no variables.
+            return;
+        }
+        let temp: function_arguments_call = unbox(args.clone());
+        match temp {
+            function_arguments_call::arg_call_list(a1,a2) => {
+                let (varl, far) = match unbox(fuargs) {
+                    function_arguments::arg_list(le,ri) => {(le,ri)},
+                    _ => return panic!("Too many inputs given to function {:?} : function_arguments_call_declare",functionname.clone()),
+                };
+                let fal = Box::new(function_arguments::var(varl));
+                let _leftSide = function_arguments_call_declare(functionname.clone(),a1,fal);
+                let _rightSide = function_arguments_call_declare(functionname.clone(),a2,far);
+            },
+            function_arguments_call::bx(bo) => {
+                let functionargs = match unbox(fuargs.clone()) {
+                    function_arguments::arg_list(le,ri) => {return panic!("jada")},
+                    function_arguments::var(v) => {v},
+                };
+                let (varname,vartype) = match functionargs {
+                    variable::parameters(n,t,_v) => {(n,t)},
+                    variable::name(n) => {(n,Type::unknown(0))},
+                };
+                let unb = unbox(bo);
+                match unb {
+                    List::var(v) => {
+                        let newargs = Box::new(function_arguments_call::variable(Box::new(v)));
+                        function_arguments_call_declare(functionname.clone(), newargs, fuargs.clone());
+                    },
+                    List::boolean(b) => {
+                        if vartype != Type::boolean {
+                            panic!("Type mismatch in var: function_arguments_call_declare")
+                        };
+                        let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                        let b = self.cast_bool(b);
+                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+                        self.builder.build_store(ptr.clone(),b);
+
+                        let ptr_val = self.get_variable(unbox(varname));
+                        self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                    },
+                    List::Num(n) => {
+                        if vartype != Type::Integer {
+                            panic!("Type mismatch in var: function_arguments_call_declare")
+                        };
+                        let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                        let n = self.cast_int(n);
+                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+                        self.builder.build_store(ptr.clone(),n);
+
+                        let ptr_val = self.get_variable(unbox(varname));
+                        self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                    },
+                    _ => (),
+                };
+            },
+            function_arguments_call::function(fu) => {
+                let functionargs = match unbox(fuargs.clone()) {
+                    function_arguments::arg_list(le,ri) => {panic!("Too few inputs given to function {:?} : function_arguments_call_declare",functionname.clone())},
+                    function_arguments::var(v) => {v},
+                };
+                let (varname,vartype) = match functionargs {
+                    variable::parameters(n,t,_v) => {(n,t)},
+                    variable::name(n) => {(n,Type::unknown(0))},
+                };
+                let val = self.compile_function_call(unbox(functionname.clone()),unbox(fu));
+
+                let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+                self.builder.build_store(ptr.clone(),val);
+
+                let ptr_val = self.get_variable(unbox(varname));
+                self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+            },
+            function_arguments_call::variable(va) => {
+                let functionargs = match unbox(fuargs.clone()) {
+                    function_arguments::arg_list(le,ri) => {panic!("Too many inputs given to function {:?} : function_arguments_call_declare",functionname.clone())},
+                    function_arguments::var(v) => {v},
+                };
+                let (varname,vartype) = match functionargs {
+                    variable::parameters(n,t,_v) => {(n,t)},
+                    variable::name(n) => {(n,Type::unknown(0))},
+                };
+                match unbox(va.clone()) {
+                    variable::parameters(na,_ty,val) => {
+                        match unbox(val) {
+                            variable_value::Boolean(b) => {
+                                if vartype != Type::boolean {
+                                    panic!("Type mismatch in var: function_arguments_call_declare")
+                                };
+                                let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                                let b = self.cast_bool(b);
+                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+                                self.builder.build_store(ptr.clone(),b);
+
+                                let ptr_val = self.get_variable(unbox(varname));
+                                self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                            },
+                            variable_value::Number(n) => {
+                                if vartype != Type::Integer {
+                                    panic!("Type mismatch in var: function_arguments_call_declare")
+                                };
+                                let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                                let n = self.cast_int(n);
+                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+                                self.builder.build_store(ptr.clone(),n);
+
+                                let ptr_val = self.get_variable(unbox(varname));
+                                self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                            },
+                            _ => panic!("temp"), //Might have to include more cases for variable_value here if needed.
+                        };
+                    },
+                    variable::name(n) => {
+                        let vnam = unbox(n);
+                        let ptr_val = self.get_variable(vnam);
+                        self.builder.build_load(*ptr_val, &vnam).into_int_value();
+                    },
+                    _ => panic!("Type not yet supported: function_arguments_call_declare"),
+                };
+            },
+        }
+    }
+
+    fn fetch_func_types_dec(&mut self, functionname: String, args: function_arguments) -> Vec<BasicTypeEnum<'ctx>> {
+        match args {
+            function_arguments::arg_list(va, re) => {
+                let ty = fetch_var_type(va);
+                let val: Vec<BasicValueEnum> = match ty {
+                    Type::Integer => self.context.i32_type().into(),
+                    Type::Boolean => self.context.bool_type().into(),
+                }
+                //let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+                let rest = fetch_func_types_dec(functionname.clone(),unbox(re));
+                val.extend(rest);
+                return val;
+            },
+            function_arguments::var(va) => {
+                let ty = fetch_var_type(va);
+                let val: Vec<BasicValueEnum> = match ty {
+                    Type::Integer => self.context.i32_type().into(),
+                    Type::Boolean => self.context.bool_type().into(),
+                }
+                return val;
+            },
+            _ => panic!("Not supposed to happen: fetch_func_types")
         };
     }
 
+    // fn fetch_func_types_call(&mut self, functionname: String, args: function_arguments_call) -> Vec<BasicTypeEnum<'ctx>> {
+        
+    // }
+
+    // fn fetch_var_type(&mut self, functionname: String, var: variable) -> Type {
+    //     match var {
+    //         variable::parameters(_na,ty,_val) {
+    //             return ty;
+    //         }
+    //         _ => return Type::unknown(0);
+    //     }
+    // }
+
     //Removed check in memory so now only one match for everything, simplify memory to just include addressmap. Should make fetching easier too.
-    fn compile_var(&mut self, functionname: Box<String>, variable_var: variable) -> IntValue<'ctx> {
+    fn declare_var(&mut self, functionname: Box<String>, variable_var: variable) -> InstructionValue<'ctx>{
         match variable_var{
             variable::parameters(na,ty,val) => {
                 match unbox(val) {
                     variable_value::Boolean(b) => {
                         if ty != Type::boolean {
-                            panic!("Type mismatch in var: compile_var")
+                            panic!("Type mismatch in var: declare_var")
                         };
                         let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                         let b = self.cast_bool(b);
@@ -284,7 +462,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                     },
                     variable_value::Number(n) => {
                         if ty != Type::Integer {
-                            panic!("Type mismatch in var: compile_var")
+                            panic!("Type mismatch in var: declare_var")
                         };
                         let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                         let n = self.cast_int(n);
@@ -296,7 +474,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         match ls.clone() {
                             List::Num(n) => {
                                 if ty != Type::Integer {
-                                    panic!("Type mismatch in var: compile_var")
+                                    panic!("Type mismatch in var: declare_var")
                                 };
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 let n = self.cast_int(n);
@@ -305,7 +483,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                             },
                             List::boolean(b) => {
                                 if ty != Type::boolean {
-                                    panic!("Type mismatch in var: compile_var")
+                                    panic!("Type mismatch in var: declare_var")
                                 };
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                                 let b = self.cast_bool(b);
@@ -313,7 +491,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 self.builder.build_store(ptr.clone(),b)
                             },
                             List::var(v) => {
-                                let varval = self.compile_var(functionname.clone(),v);
+                                let varval = self.fetch_var(functionname.clone(),v);
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                                 self.builder.build_store(ptr.clone(),varval)
@@ -329,6 +507,87 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                                 self.builder.build_store(ptr.clone(),val)
+                            },
+                            _ => panic!("Incorrect type: declare_var"),
+                        }
+                    },
+                };
+                panic!("Incorrect type: declare_var");
+            },
+            variable::name(v)=>{ // Access local var with same name and return it.
+                let ptr = self.get_var(*v.clone());
+                return self.builder.build_load(*ptr,&v.clone());
+            },
+        };
+    }
+
+    fn fetch_var(&mut self, functionname: Box<String>, variable_var: variable) -> IntValue<'ctx>{
+        match variable_var{
+            variable::parameters(na,ty,val) => {
+                match unbox(val) {
+                    variable_value::Boolean(b) => {
+                        if ty != Type::boolean {
+                            panic!("Type mismatch in var: declare_var")
+                        };
+                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
+                        let b = self.cast_bool(b);
+                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
+                        self.builder.build_store(ptr.clone(),b);
+                        b
+                    },
+                    variable_value::Number(n) => {
+                        if ty != Type::Integer {
+                            panic!("Type mismatch in var: declare_var")
+                        };
+                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                        let n = self.cast_int(n);
+                        self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
+                        self.builder.build_store(ptr.clone(),n);
+                        n
+                    },
+                    variable_value::boxs(b) => {
+                        let ls = unbox(b);
+                        match ls.clone() {
+                            List::Num(n) => {
+                                if ty != Type::Integer {
+                                    panic!("Type mismatch in var: declare_var")
+                                };
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                                let n = self.cast_int(n);
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
+                                self.builder.build_store(ptr.clone(),n);
+                                n
+                            },
+                            List::boolean(b) => {
+                                if ty != Type::boolean {
+                                    panic!("Type mismatch in var: declare_var")
+                                };
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
+                                let b = self.cast_bool(b);
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
+                                self.builder.build_store(ptr.clone(),b);
+                                b
+                            },
+                            List::var(v) => {
+                                let varval = self.fetch_var(functionname.clone(),v);
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
+                                self.builder.build_store(ptr.clone(),varval);
+                                varval
+                            },
+                            List::Cons(lli,op,rli) => {
+                                let val = self.compile_cons(*functionname.clone(), lli, op, rli);
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
+                                self.builder.build_store(ptr.clone(),val);
+                                val
+                            },
+                            List::func(fu) => {
+                                let val = self.compile_list(unbox(functionname.clone()), ls.clone());
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
+                                self.builder.build_store(ptr.clone(),val);
+                                val
                             },
                             _ => return self.cast_int(0),
                         }
@@ -411,7 +670,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
-    fn compile_function_elements(&mut self, functionname: Box<String>, fe: function_elements) -> InstructionValue<'ctx>{
+    fn compile_function_elements(&mut self, functionname: Box<String>, fe: function_elements) -> (InstructionValue<'ctx>, bool){
         match fe {
             function_elements::ele_list(v,w)=>{
                 let ele1: function_elements = unbox(v);
@@ -421,7 +680,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
             },
             function_elements::boxs(v)=>{
                 let box_cont: variable = unbox(v);
-                self.compile_var(functionname, box_cont);
+                (self.declare_var(functionname, box_cont), false)
             },
             function_elements::if_box(v)=>{
                 let box_cont= unbox(v);
@@ -431,10 +690,10 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 self.compile_list(unbox(functionname), v);
             },
             function_elements::function(v)=>{
-                self.compile_function(unbox(functionname), v)
+                (self.compile_function(unbox(functionname), v), false)
             },
             function_elements::variable(v)=>{
-                self.compile_var(functionname, v);
+                (self.declare_var(functionname, v), false)
             },
             function_elements::if_enum(v)=>{
                 self.compile_if(functionname, v);
@@ -443,7 +702,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 self.compile_while(functionname, v);
             },
             function_elements::return_val(v) => {
-                return self.compile_return(functionname,v);
+                return (self.compile_return(functionname,v), true);
             },
         }
     }
