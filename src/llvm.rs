@@ -88,6 +88,8 @@ struct CodeGen<'a, 'ctx> {
 
     var: HashMap<String, PointerValue<'ctx>>,
 
+    state: HashMap<String, llvmhashstate<'ctx>>,
+
     //mut currentid: i32 = 1,
 }
 
@@ -110,11 +112,18 @@ pub fn execute(pg: Program) {
         execution_engine: &execution_engine,
         var: HashMap::new(),
         fn_value_opt: None,
+        state: HashMap::new(),
     };
 
     //let mut state: HashMap<String, llvmhashstate> = HashMap::new();
 
     //let mut mem: HashMap<String, HashMap<String, PointerValue>> = HashMap::new();
+
+    let mut dec_iter = statements.iter();
+
+    for stmt in dec_iter {
+        codegen.functionDeclare(stmt.clone()); //Loop through and declare all functions into state.
+    }
 
     let mut iter = statements.iter(); 
 
@@ -149,9 +158,42 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         };
     }
 
-    fn insert_var(&self, functionname: String, na: String, pa: PointerValue<'ctx>) {
+    fn getState(&self, function: String) -> &llvmhashstate {
+        if self.state.contains_key(&function) {
+            let result = self.state.get(&function);
+            match result {
+                Some(val) => return val,
+                None => panic!("Get state failed!: getState"),
+            }
+        } else {
+            panic!("No such state exists!: getState");
+        }
+    }
+
+    fn changeState(&mut self, function: String, st: llvmhashstate<'ctx>) {
+        self.state.insert(function,st); //Adds state if it does not exists, updates value 'st' if it does.
+    }
+
+    fn insert_var(&mut self, functionname: String, na: String, pa: PointerValue<'ctx>) {
         self.var.insert(na,pa);
     }
+
+    fn functionDeclare(&mut self, ls: List) {
+        match ls {
+            List::func(f) => {
+                match f.clone() {
+                    function::parameters_def(na,ar,ty,ele) => {
+                        let temp: Vec<llvmhashvariable> = Vec::new();
+                        let tempstring: String = unbox(na.clone());
+                        self.changeState(tempstring.clone(),llvmhashstate::state(Box::new(llvmfunctionstate::Declared),Box::new(temp),Box::new(f.clone()),-1));
+                    },
+                    _ => (),
+                };
+            },
+            _ => (),// Do nothing
+        }
+    }
+
 
     fn compile_list(&mut self, functionname: String, ls: List) -> IntValue<'ctx> {
         match ls{
@@ -257,7 +299,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     fn compile_function(&mut self,functionname: String, func_var: function) -> InstructionValue<'ctx>{
         let (na,args) = match func_var{
             function::parameters_def(n,m,_n,_o)=>{
-                
+                return self.builder.build_unreachable();
             }, //Do nothing on define, since this is handled in functionDeclare, except for main.
             function::parameters_call(v,w)=>{
                 (v,w)
@@ -266,11 +308,22 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
         //Fetch function arguments and call fetch_func_types_dec
 
-        let deargs = fetch_func_types_dec()
-        let par_types = self.fetch_func_types_dec(functionname,deargs);
-        let fn_type = self.context.i32_type.fn_type(&par_types, false);
+        let st = self.getState(unbox(na.clone()));
+
+        let fu_st = match st {
+            llvmhashstate::state(_fust,_va,fu,_i) => fu,
+            _ => panic!("Function not declared: compile_function")
+        };
+
+        let (fu_st_args,fu_st_ele) = match unbox(fu_st.clone()) {
+            function::parameters_def(_na,args,_ty,ele) => (args,ele),
+            _ => panic!("Something went wrong with declaring: compile_function")
+        };
+
+        let par_types = self.fetch_func_types_dec(unbox(na.clone()),unbox(fu_st_args.clone()));
+        let fn_type = self.context.i32_type().fn_type(&par_types, false);
         let function = self.module.add_function(&na, fn_type, None);
-        let basic_block = self.context.append_basic_block(function, &name);
+        let basic_block = self.context.append_basic_block(function, &na);
 
         self.fn_value_opt = Some(function);
         self.builder.position_at_end(basic_block);
@@ -279,11 +332,15 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         //Then execute the function
 
         //Fetch function from state, call new function_arguments_call_declare to sort out inputs to func
+
+        self.function_arguments_call_declare(na.clone(),args,fu_st_args.clone());
+        let result = self.compile_function_elements(na.clone(),unbox(fu_st_ele));
+        return result.0;
     }
 
     //Declares variables sent to a function through call and adds them to memeory. Handles nestled function calls.
     //Takes function args to ensure that names and order is correct when declaring variables.
-    fn function_arguments_call_declare(functionname: Box<String>, args: Box<function_arguments_call>, fuargs: Box<function_arguments>) {
+    fn function_arguments_call_declare(&mut self, functionname: Box<String>, args: Box<function_arguments_call>, fuargs: Box<function_arguments>) {
         if unbox(functionname.clone()) == "main" { //If we are in main, declare no variables.
             return;
         }
@@ -295,8 +352,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                     _ => return panic!("Too many inputs given to function {:?} : function_arguments_call_declare",functionname.clone()),
                 };
                 let fal = Box::new(function_arguments::var(varl));
-                let _leftSide = function_arguments_call_declare(functionname.clone(),a1,fal);
-                let _rightSide = function_arguments_call_declare(functionname.clone(),a2,far);
+                let _leftSide = self.function_arguments_call_declare(functionname.clone(),a1,fal);
+                let _rightSide = self.function_arguments_call_declare(functionname.clone(),a2,far);
             },
             function_arguments_call::bx(bo) => {
                 let functionargs = match unbox(fuargs.clone()) {
@@ -311,7 +368,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 match unb {
                     List::var(v) => {
                         let newargs = Box::new(function_arguments_call::variable(Box::new(v)));
-                        function_arguments_call_declare(functionname.clone(), newargs, fuargs.clone());
+                        self.function_arguments_call_declare(functionname.clone(), newargs, fuargs.clone());
                     },
                     List::boolean(b) => {
                         if vartype != Type::boolean {
@@ -322,8 +379,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                         self.builder.build_store(ptr.clone(),b);
 
-                        let ptr_val = self.get_variable(unbox(varname));
-                        self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                        let ptr_val = self.get_var(unbox(varname.clone()));
+                        self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                     },
                     List::Num(n) => {
                         if vartype != Type::Integer {
@@ -334,8 +391,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                         self.builder.build_store(ptr.clone(),n);
 
-                        let ptr_val = self.get_variable(unbox(varname));
-                        self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                        let ptr_val = self.get_var(unbox(varname.clone()));
+                        self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                     },
                     _ => (),
                 };
@@ -349,14 +406,14 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                     variable::parameters(n,t,_v) => {(n,t)},
                     variable::name(n) => {(n,Type::unknown(0))},
                 };
-                let val = self.compile_function_call(unbox(functionname.clone()),unbox(fu));
+                let val = self.compile_function_call(functionname.clone(),unbox(fu));
 
                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
                 self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                 self.builder.build_store(ptr.clone(),val);
 
-                let ptr_val = self.get_variable(unbox(varname));
-                self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                let ptr_val = self.get_var(unbox(varname.clone()));
+                self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
             },
             function_arguments_call::variable(va) => {
                 let functionargs = match unbox(fuargs.clone()) {
@@ -379,8 +436,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                                 self.builder.build_store(ptr.clone(),b);
 
-                                let ptr_val = self.get_variable(unbox(varname));
-                                self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                                let ptr_val = self.get_var(unbox(varname.clone()));
+                                self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                             },
                             variable_value::Number(n) => {
                                 if vartype != Type::Integer {
@@ -391,16 +448,16 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                                 self.builder.build_store(ptr.clone(),n);
 
-                                let ptr_val = self.get_variable(unbox(varname));
-                                self.builder.build_load(*ptr_val, &(unbox(varname))).into_int_value();
+                                let ptr_val = self.get_var(unbox(varname.clone()));
+                                self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                             },
                             _ => panic!("temp"), //Might have to include more cases for variable_value here if needed.
                         };
                     },
                     variable::name(n) => {
                         let vnam = unbox(n);
-                        let ptr_val = self.get_variable(vnam);
-                        self.builder.build_load(*ptr_val, &vnam).into_int_value();
+                        let ptr_val = self.get_var(vnam.clone());
+                        self.builder.build_load(*ptr_val, &vnam.clone()).into_int_value();
                     },
                     _ => panic!("Type not yet supported: function_arguments_call_declare"),
                 };
@@ -411,22 +468,24 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     fn fetch_func_types_dec(&mut self, functionname: String, args: function_arguments) -> Vec<BasicTypeEnum<'ctx>> {
         match args {
             function_arguments::arg_list(va, re) => {
-                let ty = fetch_var_type(va);
-                let val: Vec<BasicValueEnum> = match ty {
-                    Type::Integer => self.context.i32_type().into(),
-                    Type::Boolean => self.context.bool_type().into(),
-                }
+                let ty = self.fetch_var_type(functionname.clone(),va);
+                let mut val: Vec<BasicTypeEnum> = match ty {
+                    Type::Integer => vec![self.context.i32_type().into()],
+                    Type::boolean => vec![self.context.bool_type().into()],
+                    _ => panic!("Incorrect type: fetch_func_types_dec"),
+                };
                 //let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
-                let rest = fetch_func_types_dec(functionname.clone(),unbox(re));
+                let rest = self.fetch_func_types_dec(functionname.clone(),unbox(re));
                 val.extend(rest);
                 return val;
             },
             function_arguments::var(va) => {
-                let ty = fetch_var_type(va);
-                let val: Vec<BasicValueEnum> = match ty {
-                    Type::Integer => self.context.i32_type().into(),
-                    Type::Boolean => self.context.bool_type().into(),
-                }
+                let ty = self.fetch_var_type(functionname.clone(),va);
+                let val: Vec<BasicTypeEnum> = match ty {
+                    Type::Integer => vec![self.context.i32_type().into()],
+                    Type::boolean => vec![self.context.bool_type().into()],
+                    _ => panic!("Incorrect type: fetch_func_types_dec"),
+                };
                 return val;
             },
             _ => panic!("Not supposed to happen: fetch_func_types")
@@ -437,14 +496,16 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         
     // }
 
-    // fn fetch_var_type(&mut self, functionname: String, var: variable) -> Type {
-    //     match var {
-    //         variable::parameters(_na,ty,_val) {
-    //             return ty;
-    //         }
-    //         _ => return Type::unknown(0);
-    //     }
-    // }
+    fn fetch_var_type(&mut self, functionname: String, va: variable) -> Type {
+        match va {
+            variable::parameters(_na,ty,_val) => {
+                return ty;
+            },
+            _ => {
+                return Type::unknown(0);
+            },
+        };
+    }
 
     //Removed check in memory so now only one match for everything, simplify memory to just include addressmap. Should make fetching easier too.
     fn declare_var(&mut self, functionname: Box<String>, variable_var: variable) -> InstructionValue<'ctx>{
@@ -511,12 +572,12 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                             _ => panic!("Incorrect type: declare_var"),
                         }
                     },
+                    _ => panic!("Something failed: declare_var"),
                 };
                 panic!("Incorrect type: declare_var");
             },
             variable::name(v)=>{ // Access local var with same name and return it.
-                let ptr = self.get_var(*v.clone());
-                return self.builder.build_load(*ptr,&v.clone());
+                return self.builder.build_unreachable();
             },
         };
     }
@@ -592,6 +653,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                             _ => return self.cast_int(0),
                         }
                     },
+                    _ => return self.cast_int(0),
                 };
                 return self.cast_int(0);
             },
@@ -602,24 +664,66 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         };
     }
 
-    fn compile_if(&mut self, functionname: Box<String>, if_e: if_enum) {
+    fn compile_if(&mut self, functionname: Box<String>, if_e: if_enum) -> InstructionValue<'ctx> {
         let (ifst, if_body) = match if_e{
             if_enum::condition(v,w)=>(v,w)
         };
-        let temp = self.compile_cons(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0)));
-        if (temp == (self.cast_int(1))) {
-            self.compile_function_elements(functionname.clone(), unbox(if_body));
-        }
+        // let temp = self.compile_cons(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0)));
+        // if (temp == (self.cast_int(1))) {
+        //     return self.compile_function_elements(functionname.clone(), unbox(if_body)).0;
+        // }
+        let cond = self.compile_cons(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0)));
+
+        let then_block = self.context.append_basic_block(self.fn_value(), "then");
+        let cont_block = self.context.append_basic_block(self.fn_value(), "cont");
+
+        self.builder
+            .build_conditional_branch(cond, then_block, cont_block);
+        self.builder.position_at_end(then_block);
+        self.compile_function_elements(functionname.clone(), unbox(if_body));
+
+        self.builder.build_unconditional_branch(cont_block);
+        self.builder.position_at_end(cont_block);
+
+        let phi = self.builder.build_phi(self.context.i32_type(), "if");
+        phi.add_incoming(&[
+            (&self.cast_int(1), then_block),
+            (&self.cast_int(0), cont_block),
+        ]);
+        phi.as_instruction()
     }
 
-    fn compile_while(&mut self, functionname: Box<String>, while_e: while_enum) {
+    fn compile_while(&mut self, functionname: Box<String>, while_e: while_enum) -> InstructionValue<'ctx> {
         let (while_statement, while_body) =  match while_e{
             while_enum::condition(v,w)=>(v,w),
         };
-        let temp = self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0)));
-        while (temp == (self.cast_int(1))) {
-            self.compile_function_elements(functionname.clone(), unbox(while_body.clone()));
-        }
+        // let temp = self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0)));
+        // result: (InstructionValue<'ctx>,bool);
+        // while (temp == (self.cast_int(1))) {
+        //     result = self.compile_function_elements(functionname.clone(), unbox(while_body.clone())).0;
+        // }
+        // return result.0;
+
+        let do_block = self.context.append_basic_block(self.fn_value(), "do");
+        let cont_block = self.context.append_basic_block(self.fn_value(), "cont");
+
+        let cond = self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0)));
+
+        self.builder
+            .build_conditional_branch(cond, do_block, cont_block);
+        self.builder.position_at_end(do_block);
+        self.compile_function_elements(functionname.clone(), unbox(while_body.clone()));
+
+        self.builder
+            .build_conditional_branch(cond, do_block, cont_block);
+        self.builder.position_at_end(cont_block);
+
+        let phi = self.builder.build_phi(self.context.i32_type(), "while");
+        phi.add_incoming(&[
+            (&self.cast_int(0), do_block),
+            (&self.cast_int(1), do_block),
+        ]);
+        phi.as_instruction()
     }
 
     //Used to return  -> (InstructionValue<'ctx>, bool)
@@ -676,7 +780,10 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 let ele1: function_elements = unbox(v);
                 let ele2: function_elements = unbox(w);
                 let res1 = self.compile_function_elements(functionname.clone(), ele1);
-                let res2 = self.compile_function_elements(functionname.clone(), ele2);
+                if (res1.1) {
+                    return res1;
+                }
+                return self.compile_function_elements(functionname.clone(), ele2);
             },
             function_elements::boxs(v)=>{
                 let box_cont: variable = unbox(v);
@@ -684,10 +791,11 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
             },
             function_elements::if_box(v)=>{
                 let box_cont= unbox(v);
-                self.compile_if(functionname, box_cont);
+                (self.compile_if(functionname, box_cont), false)
             },
             function_elements::List(v)=>{
-                self.compile_list(unbox(functionname), v);
+                panic!("Should not happen: compile_function_elements");
+                //self.compile_list(unbox(functionname), v);
             },
             function_elements::function(v)=>{
                 (self.compile_function(unbox(functionname), v), false)
@@ -696,10 +804,10 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 (self.declare_var(functionname, v), false)
             },
             function_elements::if_enum(v)=>{
-                self.compile_if(functionname, v);
+                (self.compile_if(functionname, v), false)
             },
             function_elements::while_enum(v) => {
-                self.compile_while(functionname, v);
+                (self.compile_while(functionname, v), false)
             },
             function_elements::return_val(v) => {
                 return (self.compile_return(functionname,v), true);
@@ -736,8 +844,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         let temp: function_arguments_call = unbox(args.clone());
         match temp {
             function_arguments_call::arg_call_list(a1,a2) => {
-                let leftSide = self.compile_function_arguments_call_declare(functionname.clone(),a1);
-                let rightSide = self.compile_function_arguments_call_declare(functionname.clone(),a2);
+                let mut leftSide = self.compile_function_arguments_call_declare(functionname.clone(),a1);
+                let mut rightSide = self.compile_function_arguments_call_declare(functionname.clone(),a2);
                 leftSide.extend(rightSide);
                 return leftSide;
             },
