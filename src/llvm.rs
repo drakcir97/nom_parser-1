@@ -93,7 +93,7 @@ struct CodeGen<'a, 'ctx> {
     //mut currentid: i32 = 1,
 }
 
-pub fn execute(pg: Program) {
+pub fn execute(pg: Program)  -> Result<(), Box<dyn Error>> {
     let (nm, statements) = match pg {
         Program::pgr(v,w) => (v,w),
     };
@@ -125,11 +125,27 @@ pub fn execute(pg: Program) {
         codegen.functionDeclare(stmt.clone()); //Loop through and declare all functions into state.
     }
 
+    // let mut iter = statements.iter(); 
+
+    // for stmt in iter { //Run program
+    //     codegen.compile_list(unbox(nm.clone()),stmt.clone());
+    // }
+
     let mut iter = statements.iter(); 
 
     for stmt in iter { //Run program
-        codegen.compile_list(unbox(nm.clone()),stmt.clone());
+        codegen.runMainFunction(stmt.clone()); //Run main function
     }
+
+    codegen.module.print_to_stderr();
+    let compiled_program: JitFunction<ExprFunc> =
+        unsafe { codegen.execution_engine.get_function("main").ok().unwrap() };
+
+    unsafe {
+        println!("llvm-result: {} ", compiled_program.call());
+    }
+
+    Ok(())
     //assert!(iter.is_ok());
 }
 
@@ -194,6 +210,24 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
+    fn runMainFunction(&mut self, ls: List) {
+        match ls {
+            List::func(f) => {
+                match f.clone() {
+                    function::parameters_def(na,ar,ty,ele) => {
+                        if (unbox(na.clone()) == "main".to_string()) {
+                            println!("Found main in structure");
+                            let fc = function::parameters_call(Box::new("main".to_string()),Box::new(function_arguments_call::variable(Box::new(variable::name(Box::new("test".to_string()))))));
+                            self.compile_function("FirstCall".to_string(),fc);
+                        }
+                    },
+                    _ => (),
+                };
+            },
+            _ => (),// Do nothing
+        }
+    }
+
 
     fn compile_list(&mut self, functionname: String, ls: List) -> IntValue<'ctx> {
         match ls{
@@ -210,11 +244,11 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     //TODO
     fn allocate_pointer(&mut self, functionname: String, na: String, is_bool: bool) -> PointerValue<'ctx> {
         let builder = self.context.create_builder();
-        //let entry = self.fn_value().get_first_basic_block().unwrap();
-        //match entry.get_first_instruction() {
-        //    Some(f_ins) => builder.position_before(&f_ins),
-        //    None => builder.position_at_end(entry),
-        //}
+        let entry = self.fn_value().get_first_basic_block().unwrap();
+        match entry.get_first_instruction() {
+           Some(f_ins) => builder.position_before(&f_ins),
+           None => builder.position_at_end(entry),
+        }
         let pa: PointerValue;
 
         if is_bool {
@@ -297,6 +331,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
     //TODO update it for llvm, supposed to execute function without using caller function.
     fn compile_function(&mut self,functionname: String, func_var: function) -> InstructionValue<'ctx>{
+        println!("compile_function");
         let (na,args) = match func_var{
             function::parameters_def(n,m,_n,_o)=>{
                 return self.builder.build_unreachable();
@@ -314,6 +349,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
             llvmhashstate::state(_fust,_va,fu,_i) => fu,
             _ => panic!("Function not declared: compile_function")
         };
+
+        println!("Program from state: {:?}",fu_st.clone());
 
         let (fu_st_args,fu_st_ele) = match unbox(fu_st.clone()) {
             function::parameters_def(_na,args,_ty,ele) => (args,ele),
@@ -519,7 +556,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                         let b = self.cast_bool(b);
                         self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                        self.builder.build_store(ptr.clone(),b)
+                        return self.builder.build_store(ptr.clone(),b);
                     },
                     variable_value::Number(n) => {
                         if ty != Type::Integer {
@@ -528,7 +565,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                         let n = self.cast_int(n);
                         self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                        self.builder.build_store(ptr.clone(),n)
+                        return self.builder.build_store(ptr.clone(),n);
                     },
                     variable_value::boxs(b) => {
                         let ls = unbox(b);
@@ -537,10 +574,14 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 if ty != Type::Integer {
                                     panic!("Type mismatch in var: declare_var")
                                 };
+                                println!("Should be here");
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
+                                println!("Pointer");
                                 let n = self.cast_int(n);
+                                println!("Cast");
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                self.builder.build_store(ptr.clone(),n)
+                                println!("Passed insert");
+                                return self.builder.build_store(ptr.clone(),n);
                             },
                             List::boolean(b) => {
                                 if ty != Type::boolean {
@@ -549,25 +590,25 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                                 let b = self.cast_bool(b);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                self.builder.build_store(ptr.clone(),b)
+                                return self.builder.build_store(ptr.clone(),b);
                             },
                             List::var(v) => {
                                 let varval = self.fetch_var(functionname.clone(),v);
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                self.builder.build_store(ptr.clone(),varval)
+                                return self.builder.build_store(ptr.clone(),varval);
                             },
                             List::Cons(lli,op,rli) => {
                                 let val = self.compile_cons(*functionname.clone(), lli, op, rli);
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                self.builder.build_store(ptr.clone(),val)
+                                return self.builder.build_store(ptr.clone(),val);
                             },
                             List::func(fu) => {
                                 let val = self.compile_list(unbox(functionname.clone()), ls.clone());
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                self.builder.build_store(ptr.clone(),val)
+                                return self.builder.build_store(ptr.clone(),val);
                             },
                             _ => panic!("Incorrect type: declare_var"),
                         }
@@ -786,6 +827,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 return self.compile_function_elements(functionname.clone(), ele2);
             },
             function_elements::boxs(v)=>{
+                println!("Sanity check");
                 let box_cont: variable = unbox(v);
                 (self.declare_var(functionname, box_cont), false)
             },
@@ -810,11 +852,13 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 (self.compile_while(functionname, v), false)
             },
             function_elements::return_val(v) => {
+                println!("jada");
                 return (self.compile_return(functionname,v), true);
             },
         }
     }
 
+    //Might be incorrect, need to verify functionality /R 2021-06-23
     fn compile_function_call(&mut self, functionname: Box<String>, fu: function) -> IntValue<'ctx> {
         let (funame, fargs) = match fu{
             function::parameters_def(na,_m,_n,_o)=>{

@@ -53,13 +53,24 @@ fn main() {
         fn main(input: i32) -> i32{
             let testInp:i32 = 2;
             let testV:i32 = (1-asd(testInp))-1;
+            return testV;
         }
+
         fn asd(input: i32)->i32{
-            return input;
+            return 1;
         }
     "
     );
     //
+
+    // fn main(input: i32) -> i32{
+    //     let testInp:i32 = 2;
+    //     let testV:i32 = (1-asd(testInp))-1;
+    //     return testInp;
+    // }
+    // fn asd(input: i32)->i32{
+    //     return input;
+    // }
 
     //
     // let x = if_parser("if (1+2){
