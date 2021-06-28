@@ -348,6 +348,7 @@ fn operator(input: &str) -> IResult<&str, op> {
             map(tag("<"), |_| op::less),
             map(tag("*"), |_| op::mult),
             map(tag(">"), |_| op::greater),
+            map(tag("=="), |_| op::equal),
             map(tag("||"), |_| op::or),
             map(tag("&&"), |_| op::and),
             map(tag("<="), |_| op::lessEqual),

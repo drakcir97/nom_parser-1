@@ -29,6 +29,7 @@ pub enum op {
     res,
     less,
     greater,
+    equal,
     lessEqual,
     greatEqual,
     and,

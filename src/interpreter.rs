@@ -654,6 +654,36 @@ fn cons_execute(functionname: String, l: Box<List>, oper: op ,r:  Box<List>, sta
             };
             return List::boolean(vall || valr);
         },
+        op::equal => {
+            let llist: List = execute_List(functionname.clone(), unbox(l), state, idmap, addressmap, currentid);
+            let rlist: List = execute_List(functionname.clone(), unbox(r), state, idmap, addressmap, currentid);
+            let vall = match llist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            let valr = match rlist {
+                List::boolean(n) => {
+                    if n == true {
+                        1
+                    } else {
+                        0
+                    }
+                },
+                List::Num(n) => {n},
+                _ => {panic!("Type mismatch : cons_execute")},
+            };
+            if (vall == valr) {
+                return List::boolean(true);
+            }
+            return List::boolean(false);
+        },
         
 
         _ => panic!("Operand not supported: cons_execute")

@@ -348,6 +348,66 @@ fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap
 
             };
         },
+        op::less => {
+            match ls {
+                Type::boolean => {
+                    match rs {
+                        Type::boolean => return Type::boolean,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::greater => {
+            match ls {
+                Type::boolean => {
+                    match rs {
+                        Type::boolean => return Type::boolean,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::equal => {
+            match ls {
+                Type::Integer => {
+                    match rs {
+                        Type::boolean => return Type::boolean,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::lessEqual => {
+            match ls {
+                Type::boolean => {
+                    match rs {
+                        Type::boolean => return Type::boolean,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
+        op::greatEqual => {
+            match ls {
+                Type::boolean => {
+                    match rs {
+                        Type::boolean => return Type::boolean,
+                        _ => panic!("Incorrect types: typechecker"),
+                    };
+                },
+                _ => panic!("Incorrect types: typechecker"),
+
+            };
+        },
         _ => panic!("Incorrect operand : typechecker"),
     }; 
 }

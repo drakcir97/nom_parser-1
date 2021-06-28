@@ -57,7 +57,11 @@ fn main() {
         }
 
         fn asd(input: i32)->i32{
-            return 1;
+            let test:i32 = 1;
+            if (1<2) {
+                return 0;
+            };
+            return test;
         }
     "
     );
@@ -105,15 +109,24 @@ fn main() {
 }
 
 fn parserun(st: &str) {
+    println!("---------- PARSER ----------\n");
     let parsed = parser::program_parser(st);
-    println!("parsed: {:?} \n\n", parsed);
+    println!("parsed: {:?} \n", parsed);
+
+    println!("---------- TYPECHECKER ----------\n");
+
     typechecker::typechecker(parsed.clone());
+    
+    println!("---------- INTERPRETER ----------\n");
+
     let result = interpreter::execute(parsed.clone());
 
     let iter = result.iter();
     for line in iter {
         println!("Program state \n\n {:?}", line);
     }
+
+    println!("---------- LLVM ----------\n");
 
     llvm::execute(parsed.clone());
 }
