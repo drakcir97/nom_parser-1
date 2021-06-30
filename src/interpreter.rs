@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
-
+#![allow(unreachable_code)]
+#![allow(non_camel_case)]
 extern crate nom;
 use nom::{
     branch::alt,
@@ -115,8 +116,11 @@ fn changeState(function: String, st: hashstate, state: &mut HashMap<String, hash
 fn changeFunctionState(function: String, st: functionstate, state: &mut HashMap<String, hashstate>) {
     let oldstate = getState(function.clone(),state);
     match oldstate.clone() {
-        hashstate::state(_fs, hv, fu, ln) => {
-            changeState(function.clone(), hashstate::state(Box::new(st),hv,fu,ln),state);
+        hashstate::state(fs, hv, fu, ln) => {
+            match unbox(fs.clone()) {
+                functionstate::Returned(_) => (),
+                _ => changeState(function.clone(), hashstate::state(Box::new(st),hv,fu,ln),state),
+            };
         },
         hashstate::Nil => {panic!("Not supposed to happen: changeFunctionState")}
     }
@@ -1017,6 +1021,18 @@ fn while_execute(functionname: Box<String>, while_e: while_enum, state: &mut Has
     changeFunctionState(unbox(functionname.clone()), functionstate::Looping, state);
     while cons_execute(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0)), state, idmap, addressmap, currentid) != List::boolean(false) {
         function_elements_execute(functionname.clone(), unbox(while_body.clone()), state, idmap, addressmap, currentid);
+        let fnstate = getState(*functionname.clone(),state);
+        match fnstate {
+            hashstate::state(st,vars,fu,line) => {
+                match unbox(st.clone()) {
+                    functionstate::Returned(_) => {
+                        break;
+                    },
+                    _ => (),
+                };
+            },
+            _ => (),
+        }
     }
     changeFunctionState(unbox(functionname), functionstate::Running, state);
 }
@@ -1026,7 +1042,13 @@ fn return_execute(functionname: Box<String>, var_val: variable_value, state: &mu
     let st2: &mut HashMap<String, hashstate> = &mut state.clone();
     let fnstate = getState(*functionname.clone(),st2);
     match fnstate {
-        hashstate::state(_st,vars,fu,line) => {
+        hashstate::state(st,vars,fu,line) => {
+            match unbox(st.clone()) {
+                functionstate::Returned(_) => {
+                    return;
+                },
+                _ => (),
+            };
             match var_val {
                 variable_value::Boolean(b) => {
                     let temp = hashdata::valuebool(b);
@@ -1242,6 +1264,11 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
                     let addressOfTemp = addToMemory(0, temp, idmap, addressmap, currentid);
                     let temp2 = hashvariable::var(unbox(varname),addressOfTemp);
                     addLocalVariable(unbox(functionname.clone()), temp2, state);
+                },
+                List::Cons(a,t,b) => {
+                    let val = cons_execute(unbox(oldfunctionname.clone()),a,t,b,state,idmap,addressmap,currentid);
+                    let temp = function_arguments_call::bx(Box::new(val));
+                    return function_arguments_call_declare(functionname.clone(),oldfunctionname.clone(),Box::new(temp),fuargs,state,idmap,addressmap,currentid);
                 },
                 _ => (),
             };

@@ -1,3 +1,7 @@
+#![allow(non_snake_case)]
+#![allow(unused_imports)]
+#![allow(unreachable_code)]
+#![allow(non_camel_case)]
 extern crate nom;
 use nom::{
     branch::alt,
@@ -350,9 +354,9 @@ fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap
         },
         op::less => {
             match ls {
-                Type::boolean => {
+                Type::Integer => {
                     match rs {
-                        Type::boolean => return Type::boolean,
+                        Type::Integer => return Type::boolean,
                         _ => panic!("Incorrect types: typechecker"),
                     };
                 },
@@ -362,9 +366,9 @@ fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap
         },
         op::greater => {
             match ls {
-                Type::boolean => {
+                Type::Integer => {
                     match rs {
-                        Type::boolean => return Type::boolean,
+                        Type::Integer => return Type::boolean,
                         _ => panic!("Incorrect types: typechecker"),
                     };
                 },
@@ -376,7 +380,7 @@ fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap
             match ls {
                 Type::Integer => {
                     match rs {
-                        Type::boolean => return Type::boolean,
+                        Type::Integer => return Type::boolean,
                         _ => panic!("Incorrect types: typechecker"),
                     };
                 },
@@ -386,9 +390,9 @@ fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap
         },
         op::lessEqual => {
             match ls {
-                Type::boolean => {
+                Type::Integer => {
                     match rs {
-                        Type::boolean => return Type::boolean,
+                        Type::Integer => return Type::boolean,
                         _ => panic!("Incorrect types: typechecker"),
                     };
                 },
@@ -398,9 +402,9 @@ fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap
         },
         op::greatEqual => {
             match ls {
-                Type::boolean => {
+                Type::Integer => {
                     match rs {
-                        Type::boolean => return Type::boolean,
+                        Type::Integer => return Type::boolean,
                         _ => panic!("Incorrect types: typechecker"),
                     };
                 },

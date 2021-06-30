@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
-#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unreachable_code)]
+#![allow(non_camel_case)]
 
 extern crate nom;
 use nom::{
@@ -202,6 +204,9 @@ fn integer_cons_parser<'v>(v:(&str, &str), value: &'v str, restvalue: &'v str) -
     let value: i32 = value.parse().unwrap();
     let list_var = Num(value);
     // checks if rest value = "" or ;
+    if restvalue == "" {
+        return Ok((restvalue, expr::list(list_var)));
+    }
     let nextchar = restvalue.chars().next().unwrap();
     let if_var = if nextchar == ';'  {
          let (restvalue,_) = tag(";")(restvalue)?;
@@ -623,7 +628,7 @@ fn function_parser(input: &str) -> IResult<&str, List> {
 }
 
 //Parses the condition, and the body of if statements and while loops and adds them to the tree
-fn if_parser(input: &str) -> IResult<&str, expr> {
+pub fn if_parser(input: &str) -> IResult<&str, expr> {
     println!("entered if_parser");
     let (input, _) = preceded(multispace0, tag("if"))(input)?;
 

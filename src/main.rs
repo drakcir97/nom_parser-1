@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
+#![allow(unreachable_code)]
+#![allow(non_camel_case)]
 
 mod enums;
 mod interpreter;
@@ -52,15 +54,16 @@ fn main() {
     "
         fn main(input: i32) -> i32{
             let testInp:i32 = 2;
-            let testV:i32 = (1-asd(testInp))-1;
+            let testV:i32 = (1-asd(testInp+1))-1;
             return testV;
         }
 
         fn asd(input: i32)->i32{
             let test:i32 = 1;
-            if (1<2) {
-                return 0;
-            };
+            while (1) {
+                let test:i32 = test+1;
+                return test;
+            }
             return test;
         }
     "
@@ -77,8 +80,9 @@ fn main() {
     // }
 
     //
-    // let x = if_parser("if (1+2){
-    // let x:i32 = 5;
+    // let x = parser::if_parser("if (1<2){
+    //     return 0+1;
+    // }");
     // let y: i32 =18*7;
     // if (2>7){
     // let test: i32 = 9;

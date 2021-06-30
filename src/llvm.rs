@@ -949,6 +949,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
                         return result;
                     },
+                    List::Cons(a,o,b) => {
+                        let vname = "empty".to_string();
+                        let ptr = self.allocate_pointer(*functionname.clone(),vname.clone(),false);
+                        let n = self.compile_cons(unbox(functionname.clone()),a,o,b);
+                        self.builder.build_store(ptr.clone(),n);
+                        self.insert_var(*functionname.clone(), vname.clone(), ptr.clone());
+                        let ptr_val = self.get_var(vname.clone());
+                        let val = self.builder.build_load(*ptr_val, &vname).into_int_value();
+                        let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+                        return result;
+                    },
                     _ => panic!("asd"),
                 };
             },
