@@ -86,9 +86,9 @@ struct CodeGen<'a, 'ctx> {
     fn_value_opt: Option<FunctionValue<'ctx>>,
     //Mem should be sorted on function name and contain a second hashmap that actually stores the variables under name with the pointer. 2021-04-25
 
-    var: HashMap<String, PointerValue<'ctx>>,
+    var: HashMap<String, PointerValue<'ctx>>, //Stores pointers for variables.
 
-    state: HashMap<String, llvmhashstate<'ctx>>,
+    state: HashMap<String, llvmhashstate<'ctx>>, //Store state like in interpreter, used for fetching whole function when calling.
 
     //mut currentid: i32 = 1,
 }
@@ -105,7 +105,7 @@ pub fn execute(pg: Program)  -> Result<(), Box<dyn Error>> {
         .create_jit_execution_engine(OptimizationLevel::None)
         .unwrap();
     
-    let mut codegen = CodeGen {
+    let mut codegen = CodeGen { //Declare structure for LLVM.
         context: &context,
         builder: &builder,
         module: &module,
@@ -141,7 +141,7 @@ pub fn execute(pg: Program)  -> Result<(), Box<dyn Error>> {
         match stmt {
             List::func(f) => {
                 match f.clone() {
-                    function::parameters_def(na,ar,ty,ele) => {
+                    function::parameters_def(na,ar,ty,ele) => { //When we find a define, run a "call" to that function. Specifically needed for LLVM since it relies on this to "make" the function for calling later.
                         let fc = function::parameters_call(na,Box::new(function_arguments_call::variable(Box::new(variable::name(Box::new("test".to_string()))))));
                         codegen.compile_function("FirstCall".to_string(),fc);
                     },
@@ -171,10 +171,13 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     fn fn_value(&self) -> FunctionValue<'ctx> {
         self.fn_value_opt.unwrap()
     }
+    
+    //Casts a standard rust integer to an IntValue that is used by Inkwell
     fn cast_int(&self, int: i32) -> IntValue<'ctx> {
         self.context.i32_type().const_int(int as u64, false)
     }
 
+    //Casts a boolean to an intvalue thats either 1 for true, or 0 for false
     fn cast_bool(&self, b: bool) -> IntValue<'ctx> {
         match b {
             true => self.context.bool_type().const_int(1, false),
@@ -182,13 +185,22 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
+    //Fetches pointer for a variable name.
     fn get_var(&self, na: String) -> &PointerValue<'ctx> {
         match self.var.get(&na) {
             Some(v) => return v,
             None => panic!("Not found in memory: get_var {:?}",na),
         };
     }
+    //Fetches an input variable to see wether it already exists in memory or not
+    fn try_var(&self, na: String) -> bool {
+        match self.var.get(&na) {
+            Some(v) => {return true;},
+            None => {return false;},
+        };
+    }
 
+    //Returns state for a functionname, used for fetching other enum of the function when calling.
     fn getState(&self, function: String) -> &llvmhashstate {
         if self.state.contains_key(&function) {
             let result = self.state.get(&function);
@@ -201,14 +213,16 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
+    //Adds state if it doesnt exist, updates value 'st' if it does.
     fn changeState(&mut self, function: String, st: llvmhashstate<'ctx>) {
-        self.state.insert(function,st); //Adds state if it does not exists, updates value 'st' if it does.
+        self.state.insert(function,st); 
     }
 
     fn insert_var(&mut self, functionname: String, na: String, pa: PointerValue<'ctx>) {
         self.var.insert(na,pa);
     }
 
+    //Declares a function for later execution, also does some preparation for LLVM.
     fn functionDeclare(&mut self, ls: List) {
         match ls {
             List::func(f) => {
@@ -217,7 +231,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         let temp: Vec<llvmhashvariable> = Vec::new();
                         let tempstring: String = unbox(na.clone());
                         self.changeState(tempstring.clone(),llvmhashstate::state(Box::new(llvmfunctionstate::Declared),Box::new(temp),Box::new(f.clone()),-1));           
-                        let par_types = self.fetch_func_types_dec(unbox(na.clone()),unbox(ar.clone()));
+                        let par_types = self.fetch_func_types_dec(unbox(na.clone()),unbox(ar.clone())); // LLVM LINES HERE
                         let fn_type = self.context.i32_type().fn_type(&par_types, false);
                         let function = self.module.add_function(&na, fn_type, None);
                         //let basic_block = self.context.append_basic_block(function, &na);
@@ -232,6 +246,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
+    //Runs the main function declared in main.rs by adding all relevant information such as function name, function arguments and 
+    //variables to compile_function
     fn runMainFunction(&mut self, ls: List) {
         match ls {
             List::func(f) => {
@@ -250,7 +266,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
-
+    //Compiles List enum for IntValue, used in adding values for declares etc.
     fn compile_list(&mut self, functionname: String, ls: List) -> IntValue<'ctx> {
         match ls{
             List::paran(v) => {return self.compile_list(functionname.clone(), unbox(v))},
@@ -263,7 +279,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         };
     }
 
-    //TODO
+    //Allocates a pointer for later use.
     fn allocate_pointer(&mut self, functionname: String, na: String, is_bool: bool) -> PointerValue<'ctx> {
         let builder = self.context.create_builder();
         let entry = self.fn_value().get_first_basic_block().unwrap();
@@ -283,7 +299,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         return pa;
     }
 
-    //CHange return statements to use builder istead, not needed to chech for logic ourselves.
+    //Adds together values based on operand, returns IntValue so is used to combine values at declares etc.
     fn compile_cons(&mut self, functionname: String, l: Box<List>, oper: op ,r:  Box<List>) -> IntValue<'ctx> {
         let expr = match oper{
             op::add => {
@@ -356,7 +372,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         return self.cast_int(0)
     }
 
-    //TODO update it for llvm, supposed to execute function without using caller function.
+    //Does initial run of each function, needed for LLVM to "declare" the function line by line. The actual calling is done by compile_function_call.
+    //This works a bit different from the interpreter, it is this function that utilizes the stored function in getState.
     fn compile_function(&mut self,functionname: String, func_var: function) -> InstructionValue<'ctx>{
         let (na,args) = match func_var{
             function::parameters_def(n,m,_n,_o)=>{
@@ -529,6 +546,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
+    //Feches function types in a vector for declaring.
     fn fetch_func_types_dec(&mut self, functionname: String, args: function_arguments) -> Vec<BasicTypeEnum<'ctx>> {
         match args {
             function_arguments::arg_list(va, re) => {
@@ -560,6 +578,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         
     // }
 
+    //Fetches the type of a variable.
     fn fetch_var_type(&mut self, functionname: String, va: variable) -> Type {
         match va {
             variable::parameters(_na,ty,_val) => {
@@ -571,7 +590,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         };
     }
 
-    //Removed check in memory so now only one match for everything, simplify memory to just include addressmap. Should make fetching easier too.
+    //Declares a variable in memory by assigning a pointer and inserting to structure and storing it.
+    //Now replaces value stored if passing check done by try_var, if this behaviour is incorrect remove lines marked at each switch. -R
     fn declare_var(&mut self, functionname: Box<String>, variable_var: variable) -> InstructionValue<'ctx>{
         match variable_var{
             variable::parameters(na,ty,val) => {
@@ -580,8 +600,12 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         if ty != Type::boolean {
                             panic!("Type mismatch in var: declare_var")
                         };
-                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                         let b = self.cast_bool(b);
+                        if (self.try_var(*na.clone())) {                                // --------------
+                            let ptr = self.get_var(*na.clone());                        // -------------- HERE
+                            return self.builder.build_store(ptr.clone(),b);             // --------------
+                        }                                                               // --------------
+                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                         self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                         return self.builder.build_store(ptr.clone(),b);
                     },
@@ -589,8 +613,12 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         if ty != Type::Integer {
                             panic!("Type mismatch in var: declare_var")
                         };
-                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                         let n = self.cast_int(n);
+                        if (self.try_var(*na.clone())) {
+                            let ptr = self.get_var(*na.clone());
+                            return self.builder.build_store(ptr.clone(),n);
+                        }
+                        let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                         self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                         return self.builder.build_store(ptr.clone(),n);
                     },
@@ -601,8 +629,12 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 if ty != Type::Integer {
                                     panic!("Type mismatch in var: declare_var")
                                 };
-                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 let n = self.cast_int(n);
+                                if (self.try_var(*na.clone())) {
+                                    let ptr = self.get_var(*na.clone());
+                                    return self.builder.build_store(ptr.clone(),n);
+                                }
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                                 return self.builder.build_store(ptr.clone(),n);
                             },
@@ -610,25 +642,41 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 if ty != Type::boolean {
                                     panic!("Type mismatch in var: declare_var")
                                 };
-                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                                 let b = self.cast_bool(b);
+                                if (self.try_var(*na.clone())) {
+                                    let ptr = self.get_var(*na.clone());
+                                    return self.builder.build_store(ptr.clone(),b);
+                                }
+                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                                 return self.builder.build_store(ptr.clone(),b);
                             },
                             List::var(v) => {
                                 let varval = self.fetch_var(functionname.clone(),v);
+                                if (self.try_var(*na.clone())) {
+                                    let ptr = self.get_var(*na.clone());
+                                    return self.builder.build_store(ptr.clone(),varval);
+                                }
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                                 return self.builder.build_store(ptr.clone(),varval);
                             },
                             List::Cons(lli,op,rli) => {
                                 let val = self.compile_cons(*functionname.clone(), lli, op, rli);
+                                if (self.try_var(*na.clone())) {
+                                    let ptr = self.get_var(*na.clone());
+                                    return self.builder.build_store(ptr.clone(),val);
+                                }
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                                 return self.builder.build_store(ptr.clone(),val);
                             },
                             List::func(fu) => {
                                 let val = self.compile_list(unbox(functionname.clone()), ls.clone());
+                                if (self.try_var(*na.clone())) {
+                                    let ptr = self.get_var(*na.clone());
+                                    return self.builder.build_store(ptr.clone(),val);
+                                }
                                 let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
                                 return self.builder.build_store(ptr.clone(),val);
@@ -646,6 +694,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         };
     }
 
+    //Fetches variables depending on the type of the variable, and then adding it to memory
+    //Since this returns IntValue it is used when combining values with an operator etc.
     fn fetch_var(&mut self, functionname: Box<String>, variable_var: variable) -> IntValue<'ctx>{
         match variable_var{
             variable::parameters(na,ty,val) => {
@@ -728,15 +778,13 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         };
     }
 
+    //Compiles an if statement.
     fn compile_if(&mut self, functionname: Box<String>, if_e: if_enum) -> InstructionValue<'ctx> {
         let (ifst, if_body) = match if_e{
             if_enum::condition(v,w)=>(v,w)
         };
-        // let temp = self.compile_cons(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0)));
-        // if (temp == (self.cast_int(1))) {
-        //     return self.compile_function_elements(functionname.clone(), unbox(if_body)).0;
-        // }
-        let cond = self.compile_cons(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0)));
+
+        let cond = self.compile_cons(unbox(functionname.clone()), ifst, op::greater, Box::new(List::Num(0))); //Check condition
 
         let then_block = self.context.append_basic_block(self.fn_value(), "then");
         let cont_block = self.context.append_basic_block(self.fn_value(), "cont");
@@ -744,6 +792,8 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         self.builder
             .build_conditional_branch(cond, then_block, cont_block);
         self.builder.position_at_end(then_block);
+
+        //Runs actual code in if statement.
         self.compile_function_elements(functionname.clone(), unbox(if_body));
 
         self.builder.build_unconditional_branch(cont_block);
@@ -757,25 +807,22 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         phi.as_instruction()
     }
 
+    //Compiles a while loop.
     fn compile_while(&mut self, functionname: Box<String>, while_e: while_enum) -> InstructionValue<'ctx> {
         let (while_statement, while_body) =  match while_e{
             while_enum::condition(v,w)=>(v,w),
         };
-        // let temp = self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0)));
-        // result: (InstructionValue<'ctx>,bool);
-        // while (temp == (self.cast_int(1))) {
-        //     result = self.compile_function_elements(functionname.clone(), unbox(while_body.clone())).0;
-        // }
-        // return result.0;
 
         let do_block = self.context.append_basic_block(self.fn_value(), "do");
         let cont_block = self.context.append_basic_block(self.fn_value(), "cont");
 
-        let cond = self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0)));
+        let cond = self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0))); //Check condition
 
         self.builder
             .build_conditional_branch(cond, do_block, cont_block);
         self.builder.position_at_end(do_block);
+
+        //Runs actual code in while loop.
         self.compile_function_elements(functionname.clone(), unbox(while_body.clone()));
 
         self.builder
@@ -790,8 +837,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         phi.as_instruction()
     }
 
-    //Used to return  -> (InstructionValue<'ctx>, bool)
-    //Use self.builder.build_return(Some(&var)) to return only value, no need to memory and local vars and state. Should be a lot smaller after everything is removed.
+    //Builds a return statement for the provided value and returns it.
     fn compile_return(&mut self, functionname: Box<String>, var_val: variable_value) -> InstructionValue<'ctx> {
         match var_val {
             variable_value::Boolean(b) => {
@@ -814,37 +860,21 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 };
             },
             variable_value::boxs(va) => {
-                match unbox(va) {
-                    List::var(v) => {
-                        let varval = variable_value::variable(Box::new(v));
-                        return self.compile_return(functionname.clone(), varval);
-                    },
-                    List::Cons(bl, opr, br) => {
-                        let consval = self.compile_cons(unbox(functionname.clone()), bl, opr, br);
-                        return self.builder.build_return(Some(&consval));
-                    },
-                    List::boolean(b) => {
-                        let b = self.cast_bool(b);
-                        return self.builder.build_return(Some(&b));
-                    },
-                    List::Num(n) => {
-                        let n = self.cast_int(n);
-                        return self.builder.build_return(Some(&n));
-                    },
-                    _ => panic!("Return does not support this type: return_execute"),
-                }
+                let val = self.compile_list(unbox(functionname.clone()),unbox(va));
+                return self.builder.build_return(Some(&val));
             },
             _ => panic!("Return does not support this type: return_execute"),
         }
     }
 
+    //Compile the elements of a function by checking what the instruction is, and then compiling each instruction accordingly
     fn compile_function_elements(&mut self, functionname: Box<String>, fe: function_elements) -> (InstructionValue<'ctx>, bool){
         match fe {
             function_elements::ele_list(v,w)=>{
                 let ele1: function_elements = unbox(v);
                 let ele2: function_elements = unbox(w);
                 let res1 = self.compile_function_elements(functionname.clone(), ele1);
-                if (res1.1) {
+                if (res1.1) {   //Checks if compiled element is a return statement.
                     return res1;
                 }
                 return self.compile_function_elements(functionname.clone(), ele2);
@@ -879,7 +909,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
-    //Might be incorrect, need to verify functionality /R 2021-06-23
+    //Compile a function call, no need to fetch from state since it is already "declared" using LLVM in compile_function.
     fn compile_function_call(&mut self, functionname: Box<String>, fu: function) -> IntValue<'ctx> {
         let (funame, fargs) = match fu{
             function::parameters_def(na,_m,_n,_o)=>{
@@ -893,10 +923,10 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
         //println!("function call {:?}",fname);
 
-        let fu = self.module.get_function(&fname).unwrap();
+        let fu = self.module.get_function(&fname).unwrap(); //Fetch function declared in compile_function.
         let args = self.compile_function_arguments_call_declare(funame.clone(), fargs);
         
-        let call = self
+        let call = self //Build the function call with arguments and function fetched from LLVM.
             .builder
             .build_call(fu, &args, &fname)
             .try_as_basic_value()
@@ -908,6 +938,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
+    //Gets function_arguments_call into a vector used in compile_function_call. This vector is then given to the builder to build the call.
     fn compile_function_arguments_call_declare(&mut self, functionname: Box<String>, args: Box<function_arguments_call>) -> Vec<BasicValueEnum<'ctx>> {
         if (unbox(functionname.clone()) == "main") {
             return vec![inkwell::values::BasicValueEnum::IntValue(self.cast_int(0))];
