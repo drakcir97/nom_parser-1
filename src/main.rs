@@ -60,9 +60,8 @@ fn main() {
 
         fn asd(input: i32)->i32{
             let test:i32 = 1;
-            while (1) {
-                let test:i32 = test+1;
-                return test;
+            while (test < 5) {
+                test := test+1;
             }
             return test;
         }

@@ -75,6 +75,32 @@ fn variable_parser(input: &str) -> IResult<&str, expr> {
     Ok((input, expr::variable(param)))
 }
 
+fn assign_parser(input: &str) -> IResult<&str, expr> {
+
+    let (input, varname) = 
+            preceded(multispace0, take_while1(char::is_alphanumeric))(input)?;
+
+    let (input, expresion) = variable_expression_parser(input)?;
+
+    println!("{:?}", (input, expresion));
+    
+    let (_, pibRes) = put_in_box(expresion)?;
+
+    println!("{:?}",pibRes);
+
+    let pibRes = match pibRes {
+        expr::list(v) => v,
+        _ => panic!(),
+    };
+
+
+    
+    let varnameBox = Box::new(String::from(varname));
+    Ok((input, expr::variable(variable::assign(varnameBox, Box::new(boxs(Box::new(pibRes)))))))
+}
+
+
+
 fn name_parser(input: &str) -> IResult<&str, &str> {
     let (input, varname) = preceded(
         multispace0,
@@ -115,9 +141,9 @@ fn variable_type_parser(input: &str) -> IResult<&str, Type> {
 
 fn variable_expression_parser(input: &str) -> IResult<&str, &str> {
     let (input, pibval) =
-        preceded(multispace0, delimited(tag("="), take_until(";"), tag(";")))(input)?;
+        preceded(multispace0, delimited(tag(":="), take_until(";"), tag(";")))(input)?;
 
-
+    println!("komm ihåg att ta bort denna printsats{:?}", (input, pibval));
     Ok((input, pibval))
 }
 
@@ -479,6 +505,7 @@ pub fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
                 function_call_return_parser,
                 if_parser,
                 while_parser,
+                assign_parser,
                 put_in_box,
             )),
         )),

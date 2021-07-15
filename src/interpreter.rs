@@ -998,6 +998,120 @@ fn var_execute(functionname: Box<String>, variable_var: variable, state: &mut Ha
             
             
         },
+        variable::assign(na,val) => {
+            let testIfExist = getLocalVariable(unbox(functionname.clone()), unbox(na.clone()), state);
+            match testIfExist {
+                hashvariable::var(_oldname,oldaddress) => {
+                    let undata = getFromMemory(oldaddress.clone(),addressmap);
+                    let tatypedata = getFromAddressHashdata(undata, addressmap);
+                    let dtype = match tatypedata {
+                        hashdata::valuei32(va) => {Type::Integer},
+                        hashdata::valuebool(va) => {Type::boolean},
+                        _ => {panic!("Type incorrect from fetched local variable {:?}",unbox(na.clone()))},
+                    };
+                    match unbox(val) {                      //This means we don't have to touch local var, since it just contains address.
+                        variable_value::Boolean(b) => {     //And we replaced value at address
+                            if dtype != Type::boolean {
+                                panic!("Type mismatch in var: var_execute")
+                            };
+                            let temp = hashdata::valuebool(b);
+                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                        },
+                        variable_value::Number(n) => {
+                            if dtype != Type::Integer {
+                                panic!("Type mismatch in var: var_execute")
+                            };
+                            let temp = hashdata::valuei32(n);
+                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                        },
+                        variable_value::boxs(b) => {
+                            let ls = unbox(b);
+                            match ls.clone() {
+                                List::Num(n) => {
+                                    if dtype != Type::Integer {
+                                        panic!("Type mismatch in var: var_execute")
+                                    };
+                                    let temp = hashdata::valuei32(n);
+                                    let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                },
+                                List::boolean(b) => {
+                                    if dtype != Type::boolean {
+                                        panic!("Type mismatch in var: var_execute")
+                                    };
+                                    let temp = hashdata::valuebool(b);
+                                    let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                },
+                                List::var(v) => {
+                                    let varval = var_execute(functionname.clone(),v , state, idmap, addressmap, currentid);
+                                    match varval.clone() {
+                                        List::Num(n) => {
+                                            if dtype != Type::Integer {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuei32(n);
+                                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                        },
+                                        List::boolean(b) => {
+                                            if dtype != Type::boolean {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuebool(b);
+                                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                        },
+                                        _ => (),
+                                    };
+                                },
+                                List::Cons(lli,op,rli) => {
+                                    let val = cons_execute(unbox(functionname.clone()), lli, op, rli, state, idmap, addressmap, currentid);
+                                    match val.clone() {
+                                        List::Num(n) => {
+                                            if dtype != Type::Integer {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuei32(n);
+                                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                        },
+                                        List::boolean(b) => {
+                                            if dtype != Type::boolean {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuebool(b);
+                                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                        },
+                                        _ => (),
+                                    };
+                                },
+                                List::func(fu) => {
+                                    let val = execute_List(unbox(functionname.clone()), ls.clone(), state, idmap, addressmap, currentid);
+                                    match val.clone() {
+                                        List::Num(n) => {
+                                            if dtype != Type::Integer {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuei32(n);
+                                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                        },
+                                        List::boolean(b) => {
+                                            if dtype != Type::boolean {
+                                                panic!("Type mismatch in var: var_execute")
+                                            };
+                                            let temp = hashdata::valuebool(b);
+                                            let _addressOfTemp = replaceAtMemory(oldaddress, temp, idmap, addressmap);
+                                        },
+                                        _ => (),
+                                    };
+                                },
+                                _ => (),
+                            }
+                        },
+                        variable_value::variable(b) => {},
+                        _ => panic!("Incorrect value: var_execute"),
+                    };
+                },
+                hashvariable::Nil => { panic!("No local variable found for name {:?}: var_execute", unbox(na.clone())) },
+            };
+            return List::Num(0);
+        },
     };
 }
 
@@ -1240,6 +1354,7 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
             let (varname,vartype) = match functionargs {
                 variable::parameters(n,t,_v) => {(n,t)},
                 variable::name(n) => {(n,Type::unknown(0))},
+                _ => {panic!("Tried to give an assign as argument to function {:?} : function_arguments_call_declare",functionname.clone())},
             };
             let unb = unbox(bo);
             match unb {
@@ -1281,6 +1396,7 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
             let (varname,vartype) = match functionargs {
                 variable::parameters(n,t,_v) => {(n,t)},
                 variable::name(n) => {(n,Type::unknown(0))},
+                _ => {panic!("Tried to give an assign as argument to function {:?} : function_arguments_call_declare",functionname.clone())},
             };
             match unbox(fu) {
                 function::parameters_call(na, ar) => {
@@ -1352,6 +1468,7 @@ fn function_arguments_call_declare(functionname: Box<String>, oldfunctionname: B
             let (varname,vartype) = match functionargs {
                 variable::parameters(n,t,_v) => {(n,t)},
                 variable::name(n) => {(n,Type::unknown(0))},
+                _ => {panic!("Tried to give an assign as argument to function {:?} : function_arguments_call_declare",functionname.clone())},
             };
             match unbox(va.clone()) {
                 variable::parameters(na,_ty,val) => {

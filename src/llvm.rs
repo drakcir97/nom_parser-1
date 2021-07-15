@@ -444,6 +444,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 let (varname,vartype) = match functionargs {
                     variable::parameters(n,t,_v) => {(n,t)},
                     variable::name(n) => {(n,Type::unknown(0))},
+                    _ => {panic!("Tried to give an assign as argument to function {:?} : function_arguments_call_declare",functionname.clone())},
                 };
                 let unb = unbox(bo);
                 match unb {
@@ -486,6 +487,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 let (varname,vartype) = match functionargs {
                     variable::parameters(n,t,_v) => {(n,t)},
                     variable::name(n) => {(n,Type::unknown(0))},
+                    _ => {panic!("Tried to give an assign as argument to function {:?} : function_arguments_call_declare",functionname.clone())},
                 };
                 let val = self.compile_function_call(functionname.clone(),unbox(fu));
 
@@ -504,6 +506,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 let (varname,vartype) = match functionargs {
                     variable::parameters(n,t,_v) => {(n,t)},
                     variable::name(n) => {(n,Type::unknown(0))},
+                    _ => {panic!("Tried to give an assign as argument to function {:?} : function_arguments_call_declare",functionname.clone())},
                 };
                 match unbox(va.clone()) {
                     variable::parameters(na,_ty,val) => {
@@ -691,6 +694,54 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
             variable::name(v)=>{ // Access local var with same name and return it.
                 return self.builder.build_unreachable();
             },
+            variable::assign(na,val) => {
+                match unbox(val) {
+                    variable_value::Boolean(b) => {
+                        let b = self.cast_bool(b);                              
+                        let ptr = self.get_var(*na.clone());                        
+                        return self.builder.build_store(ptr.clone(),b); 
+                    },
+                    variable_value::Number(n) => {
+
+                        let n = self.cast_int(n);
+                        let ptr = self.get_var(*na.clone());
+                        return self.builder.build_store(ptr.clone(),n);
+                    },
+                    variable_value::boxs(b) => {
+                        let ls = unbox(b);
+                        match ls.clone() {
+                            List::Num(n) => {
+                                let n = self.cast_int(n);
+                                let ptr = self.get_var(*na.clone());
+                                return self.builder.build_store(ptr.clone(),n);
+                            },
+                            List::boolean(b) => {
+                                let b = self.cast_bool(b);
+                                let ptr = self.get_var(*na.clone());
+                                return self.builder.build_store(ptr.clone(),b);
+                            },
+                            List::var(v) => {
+                                let varval = self.fetch_var(functionname.clone(),v);
+                                let ptr = self.get_var(*na.clone());
+                                return self.builder.build_store(ptr.clone(),varval);
+                            },
+                            List::Cons(lli,op,rli) => {
+                                let val = self.compile_cons(*functionname.clone(), lli, op, rli);
+                                let ptr = self.get_var(*na.clone());
+                                return self.builder.build_store(ptr.clone(),val);
+                            },
+                            List::func(fu) => {
+                                let val = self.compile_list(unbox(functionname.clone()), ls.clone());
+                                let ptr = self.get_var(*na.clone());
+                                return self.builder.build_store(ptr.clone(),val);
+                            },
+                            _ => panic!("Incorrect type: declare_var"),
+                        }
+                    },
+                    _ => panic!("Something failed: declare_var"),
+                };
+                panic!("Incorrect type: declare_var");
+            },
         };
     }
 
@@ -775,6 +826,60 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 let ptr = self.get_var(*v.clone());
                 return self.builder.build_load(*ptr,&v.clone()).into_int_value();
             },
+            variable::assign(na,val) => {
+                match unbox(val) {
+                    variable_value::Boolean(b) => {
+                        let ptr = self.get_var(unbox(na.clone()));
+                        let b = self.cast_bool(b);
+                        self.builder.build_store(ptr.clone(),b);
+                        b
+                    },
+                    variable_value::Number(n) => {
+                        let ptr = self.get_var(unbox(na.clone()));
+                        let n = self.cast_int(n);
+                        self.builder.build_store(ptr.clone(),n);
+                        n
+                    },
+                    variable_value::boxs(b) => {
+                        let ls = unbox(b);
+                        match ls.clone() {
+                            List::Num(n) => {
+                                let ptr = self.get_var(unbox(na.clone()));
+                                let n = self.cast_int(n);
+                                self.builder.build_store(ptr.clone(),n);
+                                n
+                            },
+                            List::boolean(b) => {
+                                let ptr = self.get_var(unbox(na.clone()));
+                                let b = self.cast_bool(b);
+                                self.builder.build_store(ptr.clone(),b);
+                                b
+                            },
+                            List::var(v) => {
+                                let varval = self.fetch_var(functionname.clone(),v);
+                                let ptr = self.get_var(unbox(na.clone()));
+                                self.builder.build_store(ptr.clone(),varval);
+                                varval
+                            },
+                            List::Cons(lli,op,rli) => {
+                                let val = self.compile_cons(*functionname.clone(), lli, op, rli);
+                                let ptr = self.get_var(unbox(na.clone()));
+                                self.builder.build_store(ptr.clone(),val);
+                                val
+                            },
+                            List::func(fu) => {
+                                let val = self.compile_list(unbox(functionname.clone()), ls.clone());
+                                let ptr = self.get_var(unbox(na.clone()));
+                                self.builder.build_store(ptr.clone(),val);
+                                val
+                            },
+                            _ => return self.cast_int(0),
+                        }
+                    },
+                    _ => return self.cast_int(0),
+                };
+                return self.cast_int(0);
+            },
         };
     }
 
@@ -816,18 +921,17 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         let do_block = self.context.append_basic_block(self.fn_value(), "do");
         let cont_block = self.context.append_basic_block(self.fn_value(), "cont");
 
-        let cond = self.compile_cons(unbox(functionname.clone()), while_statement.clone(), op::greater, Box::new(List::Num(0))); //Check condition
-
         self.builder
-            .build_conditional_branch(cond, do_block, cont_block);
+            .build_conditional_branch(self.compile_list(unbox(functionname.clone()), unbox(while_statement.clone())), do_block, cont_block);
         self.builder.position_at_end(do_block);
 
         //Runs actual code in while loop.
-        self.compile_function_elements(functionname.clone(), unbox(while_body.clone()));
+        self.compile_function_elements(functionname.clone(), unbox(while_body));
 
         self.builder
-            .build_conditional_branch(cond, do_block, cont_block);
+            .build_conditional_branch(self.compile_list(unbox(functionname.clone()), unbox(while_statement.clone())), do_block, cont_block);
         self.builder.position_at_end(cont_block);
+
 
         let phi = self.builder.build_phi(self.context.i32_type(), "while");
         phi.add_incoming(&[

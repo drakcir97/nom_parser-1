@@ -194,47 +194,27 @@ fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>,
         variable::parameters(varname,ty,value) => {
             match ty {
                 Type::Integer => {
-                    match *value {
-                        variable_value::Number(n) => {
-                            createLocalVar(na, unbox(varname), Type::Integer, check, varcheck, currentid);
-                            return Type::Integer;
-                        },
-                        variable_value::boxs(b) => {
-                            let typ = listChecker(na.clone(), unbox(b), check, varcheck, currentid);
-                            if typ != Type::Integer {
-                                return panic!("Incorrect assignment: typechecker");
-                            }
-                            createLocalVar(na, unbox(varname), Type::Integer, check, varcheck, currentid);
-                            return Type::Integer;
-                        },
-                        _ => return panic!("Incorrect assignment: typechecker"),
-                    };
-                    return Type::unknown(0);
+                    let valtype = varValueChecker(na.clone(),unbox(value),check,varcheck,currentid);
+                    if valtype != Type::Integer {
+                        return panic!("Incorrect assignment: typechecker")
+                    }
+                    createLocalVar(na.clone(), unbox(varname), Type::Integer, check, varcheck, currentid);
+                    return Type::Integer;
                 },
                 Type::boolean => {
-                    match *value {
-                        variable_value::Boolean(b) => {
-                            createLocalVar(na, unbox(varname), Type::boolean, check, varcheck, currentid);
-                            return Type::boolean;
-                        },
-                        variable_value::boxs(b) => {
-                            let typ = listChecker(na.clone(),unbox(b), check, varcheck, currentid);
-                            if typ != Type::boolean {
-                                return panic!("Incorrect assignment: typechecker")
-                            }
-                            createLocalVar(na, unbox(varname), Type::boolean, check, varcheck, currentid);
-                            return Type::boolean;
-                        },
-                        _ => return panic!("Incorrect assignment: typechecker"),
-                    };
-                    return Type::unknown(0);
+                    let valtype = varValueChecker(na.clone(),unbox(value),check,varcheck,currentid);
+                    if valtype != Type::boolean {
+                        return panic!("Incorrect assignment: typechecker")
+                    }
+                    createLocalVar(na.clone(), unbox(varname), Type::boolean, check, varcheck, currentid);
+                    return Type::Integer;
                 },
                 _ => Type::unknown(0),
             };
             return Type::unknown(0);
         },
         variable::name(fna) => {
-            match getType(na, check).clone() {
+            match getType(na.clone(), check).clone() {
                 hashchecker::st(ty,ve,fa) => {
                     let ubve = unbox(ve);
                     let iter = ubve.iter();
@@ -259,7 +239,56 @@ fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>,
             }
             return Type::unknown(0);
         },
+        variable::assign(varname,val) => {
+            match getType(na.clone(), check).clone() {
+                hashchecker::st(ty,ve,fa) => {
+                    let ubve = unbox(ve);
+                    let iter = ubve.iter();
+                    for lv in iter {
+                        let (lona,loid) = match lv.clone() {
+                            hashvariable::var(n,id) => {(n,id)},
+                            _ => panic!(),
+                        };
+                        if lona == unbox(varname.clone()) {
+                            let lovar = getVar(loid, varcheck);
+                            let natype = match lovar.clone() {
+                                hashvarchecker::va(ty) => {
+                                    unbox(ty.clone())
+                                },
+                                _ => panic!(),
+                            };
+                            let valtype = varValueChecker(na.clone(),unbox(val),check,varcheck,currentid);
+                            if natype != valtype {
+                                return panic!("Incorrect assignment: typechecker")
+                            }
+                            return natype;
+
+                        }
+                    };
+                    panic!("Local var not found: typechecker");
+                },
+                _ => panic!(),
+            }
+        }
         _ => Type::unknown(0), //Added to be able to test 1/11-19 /Rickard
+    }
+}
+
+fn varValueChecker(na: String, v: variable_value, check: &mut HashMap<String, hashchecker>, varcheck: &mut HashMap<i32, hashvarchecker>, currentid: &mut i32) -> Type {
+    match v {
+        variable_value::variable(va) => {
+            return varChecker(na,unbox(va),check,varcheck,currentid);
+        },
+        variable_value::boxs(boli) => {
+            return listChecker(na,unbox(boli),check,varcheck,currentid);
+        },
+        variable_value::Number(nu) => {
+            return Type::Integer;
+        },
+        variable_value::Boolean(bo) => {
+            return Type::boolean;
+        },
+        _ => panic!("Incorrect type: varValueChecker"),
     }
 }
 
@@ -506,6 +535,7 @@ fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call
             let (varname,vartype) = match functionargs {
                 variable::parameters(n,t,_v) => {(n,t)},
                 variable::name(n) => {(n,Type::unknown(0))},
+                _ => {panic!("Tried to give an assign as argument to function {:?} : function_a_callChecker",na.clone())},
             };
             let vaTy = varChecker(oldna.clone(), unbox(va), check, varcheck, currentid);
             if vaTy != vartype {
@@ -522,6 +552,7 @@ fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call
             let (varname,vartype) = match functionargs {
                 variable::parameters(n,t,_v) => {(n,t)},
                 variable::name(n) => {(n,Type::unknown(0))},
+                _ => {panic!("Tried to give an assign as argument to function {:?} : function_a_callChecker",na.clone())},
             };
             let ty = listChecker(oldna.clone(), unbox(b), check, varcheck, currentid);
             if ty.clone() != vartype.clone() {
@@ -538,6 +569,7 @@ fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call
             let (varname,vartype) = match functionargs {
                 variable::parameters(n,t,_v) => {(n,t)},
                 variable::name(n) => {(n,Type::unknown(0))},
+                _ => {panic!("Tried to give an assign as argument to function {:?} : function_a_callChecker",na.clone())},
             };
             let futy = match unbox(fu.clone()) {
                 function::parameters_call(_,_) => {

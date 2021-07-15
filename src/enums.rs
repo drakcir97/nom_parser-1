@@ -53,6 +53,7 @@ pub enum variable_value {
 pub enum variable {
     parameters(Box<String>, Type, Box<variable_value>),
     name(Box<String>),
+    assign(Box<String>, Box<variable_value>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
