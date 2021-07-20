@@ -50,23 +50,23 @@ fn main() {
     //  }"
     // );
     //
-    let x = parserun(
-    "
-        fn main(input: i32) -> i32{
-            let testInp:i32 = 2;
-            let testV:i32 = (1-asd(testInp+1))-1;
-            return testV;
-        }
+    // let x = parserun(
+    // "
+    //     fn main(input: i32) -> i32{
+    //         let testInp:i32 = 2;
+    //         let testV:i32 = (1-asd(testInp+1))-1;
+    //         return testV;
+    //     }
 
-        fn asd(input: i32)->i32{
-            let test:i32 = 1;
-            while (test < 5) {
-                test := test+1;
-            }
-            return test;
-        }
-    "
-    );
+    //     fn asd(input: i32)->i32{
+    //         let test:i32 = 1;
+    //         while (test < 5) {
+    //             test := test+1;
+    //         }
+    //         return test;
+    //     }
+    // "
+    // );
     //
 
     // fn main(input: i32) -> i32{
@@ -104,11 +104,46 @@ fn main() {
     // };
     // }",
     // );
-    println!("{:?}", x);
 
     // let x = get_curl_brack_body("{
     // let x = 5;
     // let b = 3+6+7;
+
+    let x = parserun(
+        "
+        fn main(input: i32) -> i32 {
+            let  tofunc:i32 = 5;
+            if (funcbool(true)) {
+                return funcloop (1) + funcstate(tofunc);
+            }
+            return  0;
+        }
+        
+        fn  funcloop(input: i32) -> i32 {
+            while (input <4) {
+                input :=  input +1;
+            }
+            return  input;
+        }
+        
+        fn  funcstate(input: i32) -> i32 {
+            let  val:i32 = 1;
+            if (val <input) {
+                return  val;
+            }
+            return  input;
+        }
+
+        fn  funcbool(input: bool) -> bool {
+            let  bval: bool = false;
+            if (input  || bval) {
+                return  true;
+            }
+            return  false;
+        }"
+    );
+
+    println!("{:?}", x);
 }
 
 fn parserun(st: &str) {

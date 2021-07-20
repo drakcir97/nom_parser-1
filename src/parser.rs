@@ -46,7 +46,7 @@ pub fn program_parser(input: &str)-> Program{
 }
 
 fn variable_parser(input: &str) -> IResult<&str, expr> {
-
+    println!("enters variable parser");
     let (input, varname) = name_parser(input)?; 
     let (pibval, vartype) = variable_type_parser(input)?;
 
@@ -190,9 +190,11 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                     }
                 },
             };
+            println!("exit interger_cons_parser in pib {:?}", test);
             return test;
         }
     };
+    println!("resu value {:?}", resu);
     return resu;
 }
 
@@ -237,7 +239,7 @@ fn integer_cons_parser<'v>(v:(&str, &str), value: &'v str, restvalue: &'v str) -
     let if_var = if nextchar == ';'  {
          let (restvalue,_) = tag(";")(restvalue)?;
         return Ok((restvalue, expr::list(list_var)));
-    }
+    } 
     else {
         let test1 = match operator(restvalue){
             Ok(v) =>{
@@ -265,6 +267,7 @@ fn integer_cons_parser<'v>(v:(&str, &str), value: &'v str, restvalue: &'v str) -
 }
 
 fn function_call_parser<'v>(v: (&'v str, Vec<expr>), value: &'v str) -> IResult<&'v str, expr> {
+    println!("entered function call parser with input: {:?}", (&v , &value));
     let value = String::from(value);
     //let func_box_var = function_call_parentheses_parser_final(v.1);
     let func_box_var = func_var(v.1);
@@ -313,6 +316,9 @@ fn variable_cons_parser<'v>(value: &'v str, restvalue: &'v str) -> IResult<&'v s
     } else {
         var(variable::name(Box::new(value)))
     };
+    if restvalue == "" {
+        return Ok((restvalue, expr::list(list_var)));
+    }
     let nextchar = restvalue.chars().next().unwrap();
     let if_val = if nextchar == ';'  {
         let (restvalue,_) = tag(";")(restvalue)?;
@@ -528,7 +534,8 @@ pub fn get_reg_brack_cont(input:&str)->IResult<&str, Vec<expr>>{
                     // )),
                 // ),
         )),
-        preceded(multispace0, tag_semi_col),
+        //preceded(multispace0, tag_semi_col), // ändrad idag july 20 vaccinations dag!! :)
+        preceded(multispace0, tag(")")),
     )(input);
     println!("output from get_reg_brack: {:?}",output);
     output
@@ -555,6 +562,7 @@ fn get_parentheses_body(input: &str) -> IResult<&str, expr> {
 
 // parses the return type of a newly defined function
 fn return_parser(input: &str) -> IResult<&str, Type> {
+    println!("entered return parser");
     preceded(
         multispace0,
         preceded(
@@ -659,23 +667,25 @@ pub fn if_parser(input: &str) -> IResult<&str, expr> {
     println!("entered if_parser");
     let (input, _) = preceded(multispace0, tag("if"))(input)?;
 
-    let (input, paran_cont) = get_parentheses_content(input)?;
-    let (_, pibresult) = put_in_box(paran_cont)?;
+    //let (input, paran_cont) = get_parentheses_content(input)?;
+    //let (_, pibresult) = put_in_box(paran_cont)?;
+    let (input, mut bracket_content) = get_reg_brack_cont(input)?; //proof of concept
+    let bracket_content2 = bracket_content.remove(0);
     let (input, curl_para_cont) = get_curl_brack_body(input)?;
     let function_elements = function_body_elements(curl_para_cont);
 
-    let pibresult = match pibresult {
+    let pibresult = match bracket_content2 {
         expr::list(a) => a,
         _ => panic!("wrong in condition"),
     };
-
+ 
     let list = if_enum::condition(Box::new(pibresult), function_elements);
     Ok((input, expr::if_enum(list)))
 }
 
 //parses while loops
 fn while_parser(input: &str) -> IResult<&str, expr> {
-
+    println!(" entered while parser");
     let (input, _) = preceded(multispace0, tag("while"))(input)?;
 
     let (input, paran_cont) = get_parentheses_content(input)?;

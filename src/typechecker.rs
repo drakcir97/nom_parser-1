@@ -51,7 +51,7 @@ fn setReturnType(na: String, ty: Box<Type>, check: &mut HashMap<String, hashchec
     let check2 = &mut check.clone();
     let (ve,fa) = match getType(na.clone(), check2) {
         hashchecker::st(ty,ve,fa) => {(ve,fa)},
-        _ => panic!("Type incorrect: setReturnType"),
+        _ => panic!("Type incorrect for function {:?} {:?}: setReturnType", na.clone(),unbox(ty.clone())),
     };
     check.insert(na,hashchecker::st(ty,ve.clone(),fa.clone()));
 }
@@ -61,7 +61,7 @@ fn setVarType(na: String, ve: Box<Vec<hashvariable>>, check: &mut HashMap<String
     let check2 = &mut check.clone();
     let (ty,fa) = match getType(na.clone(), check2) {
         hashchecker::st(ty,ve,fa) => {(ty,fa)},
-        _ => panic!("Type incorrect: setVarType"),
+        _ => panic!("Type incorrect for function {:?}: setVarType", na.clone()),
     };
     check.insert(na,hashchecker::st(ty.clone(),ve,fa.clone()));
 }
@@ -71,7 +71,7 @@ fn setInpType(na: String, fa: Box<function_arguments>, check: &mut HashMap<Strin
     let check2 = &mut check.clone();
     let (ty,ve) = match getType(na.clone(), check2) {
         hashchecker::st(ty,ve,fa) => {(ty,ve)},
-        _ => panic!("Type incorrect: setVarType"),
+        _ => panic!("Type incorrect for function {:?}: setInpType", na.clone()),
     };
     check.insert(na,hashchecker::st(ty.clone(),ve.clone(),fa));
 }
@@ -82,10 +82,10 @@ fn getType(na: String, check: &mut HashMap<String, hashchecker>) -> &hashchecker
         let result = check.get(&na);
         match result {
             Some(val) => return val,
-            None => panic!("Get type failed!: getType"),
+            None => panic!("Get return type failed for function {:?}: getType", na.clone()),
         }
     } else {
-        panic!("No such type exists!: getType");
+        panic!("No such return type exists for function {:?}: getType", na.clone());
     }
 }
 
@@ -107,10 +107,10 @@ fn getVar(id: i32, varcheck: &mut HashMap<i32, hashvarchecker>) -> &hashvarcheck
         let result = varcheck.get(&id);
         match result {
             Some(val) => return val,
-            None => panic!("Get type failed!: getType"),
+            None => panic!("Get type failed for id {:?}: getVar", id.clone()),
         }
     } else {
-        panic!("No such type exists!: getType");
+        panic!("No such type exists for id {:?}: getVar", id.clone());
     }
 }
 
@@ -196,7 +196,7 @@ fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>,
                 Type::Integer => {
                     let valtype = varValueChecker(na.clone(),unbox(value),check,varcheck,currentid);
                     if valtype != Type::Integer {
-                        return panic!("Incorrect assignment: typechecker")
+                        return panic!("Incorrect assignment {:?}: typechecker",na.clone())
                     }
                     createLocalVar(na.clone(), unbox(varname), Type::Integer, check, varcheck, currentid);
                     return Type::Integer;
@@ -204,7 +204,7 @@ fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>,
                 Type::boolean => {
                     let valtype = varValueChecker(na.clone(),unbox(value),check,varcheck,currentid);
                     if valtype != Type::boolean {
-                        return panic!("Incorrect assignment: typechecker")
+                        return panic!("Incorrect assignment {:?}: typechecker",na.clone())
                     }
                     createLocalVar(na.clone(), unbox(varname), Type::boolean, check, varcheck, currentid);
                     return Type::Integer;
@@ -233,7 +233,7 @@ fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>,
                             };
                         }
                     };
-                    panic!("Local var not found: typechecker");
+                    panic!("Local var not found {:?} for func {:?}: typechecker",unbox(fna.clone()),na.clone());
                 },
                 _ => panic!(),
             }
@@ -259,13 +259,13 @@ fn varChecker(na: String, v: variable, check: &mut HashMap<String, hashchecker>,
                             };
                             let valtype = varValueChecker(na.clone(),unbox(val),check,varcheck,currentid);
                             if natype != valtype {
-                                return panic!("Incorrect assignment: typechecker")
+                                return panic!("Incorrect type in assignment {:?} {:?}: typechecker",unbox(varname.clone()),na.clone())
                             }
                             return natype;
 
                         }
                     };
-                    panic!("Local var not found: typechecker");
+                    panic!("Local var not found {:?} {:?}: typechecker",unbox(varname.clone()),na.clone());
                 },
                 _ => panic!(),
             }
@@ -296,150 +296,105 @@ fn varValueChecker(na: String, v: variable_value, check: &mut HashMap<String, ha
 fn consChecker(na: String,l: Box<List>, o: op, r: Box<List>, check: &mut HashMap<String, hashchecker>, varcheck: &mut HashMap<i32, hashvarchecker>, currentid: &mut i32) -> Type {
     let ls = listChecker(na.clone(),*l, check, varcheck, currentid);
     let rs = listChecker(na.clone(),*r, check, varcheck, currentid);
-    match o {
+    match o.clone() {
         op::add => {
-            match ls {
+            match ls.clone() {
                 Type::Integer => {
-                    match rs {
+                    match rs.clone() {
                         Type::Integer => return Type::Integer,
-                        _ => panic!("Incorrect types: typechecker"),
+                        _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
                     };
                 },
-                _ => panic!("Incorrect types: typechecker"),
+                _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
 
             };
         },
         op::sub => {
-            match ls {
+            match ls.clone() {
                 Type::Integer => {
-                    match rs {
+                    match rs.clone() {
                         Type::Integer => return Type::Integer,
-                        _ => panic!("Incorrect types: typechecker"),
+                        _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
                     };
                 },
-                _ => panic!("Incorrect types: typechecker"),
+                _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
 
             };
         },
         op::div => {
-            match ls {
+            match ls.clone() {
                 Type::Integer => {
-                    match rs {
+                    match rs.clone() {
                         Type::Integer => return Type::Integer,
-                        _ => panic!("Incorrect types: typechecker"),
+                        _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
                     };
                 },
-                _ => panic!("Incorrect types: typechecker"),
+                _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
 
             };
         },
         op::mult => {
-            match ls {
+            match ls.clone() {
                 Type::Integer => {
-                    match rs {
+                    match rs.clone() {
                         Type::Integer => return Type::Integer,
-                        _ => panic!("Incorrect types: typechecker"),
+                        _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
                     };
                 },
-                _ => panic!("Incorrect types: typechecker"),
+                _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
 
             };
         },
         op::res => {
-            match ls {
+            match ls.clone() {
                 Type::Integer => {
-                    match rs {
+                    match rs.clone() {
                         Type::Integer => return Type::Integer,
-                        _ => panic!("Incorrect types: typechecker"),
+                        _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
                     };
                 },
-                _ => panic!("Incorrect types: typechecker"),
+                _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
 
             };
         },
         op::and => {
-            match ls {
+            match ls.clone() {
                 Type::boolean => {
-                    match rs {
+                    match rs.clone() {
                         Type::boolean => return Type::boolean,
-                        _ => panic!("Incorrect types: typechecker"),
+                        _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
                     };
                 },
-                _ => panic!("Incorrect types: typechecker"),
+                _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
 
             };
         },
         op::or => {
-            match ls {
+            match ls.clone() {
                 Type::boolean => {
-                    match rs {
+                    match rs.clone() {
                         Type::boolean => return Type::boolean,
-                        _ => panic!("Incorrect types: typechecker"),
+                        _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
                     };
                 },
-                _ => panic!("Incorrect types: typechecker"),
+                _ => panic!("Incorrect types {:?}, {:?}, {:?} for func {:?}: consChecker",ls.clone(),o.clone(),rs.clone(),na.clone()),
 
             };
         },
         op::less => {
-            match ls {
-                Type::Integer => {
-                    match rs {
-                        Type::Integer => return Type::boolean,
-                        _ => panic!("Incorrect types: typechecker"),
-                    };
-                },
-                _ => panic!("Incorrect types: typechecker"),
-
-            };
+            return Type::boolean; //No need to check types since interpreter casts them anyway.
         },
         op::greater => {
-            match ls {
-                Type::Integer => {
-                    match rs {
-                        Type::Integer => return Type::boolean,
-                        _ => panic!("Incorrect types: typechecker"),
-                    };
-                },
-                _ => panic!("Incorrect types: typechecker"),
-
-            };
+            return Type::boolean;
         },
         op::equal => {
-            match ls {
-                Type::Integer => {
-                    match rs {
-                        Type::Integer => return Type::boolean,
-                        _ => panic!("Incorrect types: typechecker"),
-                    };
-                },
-                _ => panic!("Incorrect types: typechecker"),
-
-            };
+            return Type::boolean;
         },
         op::lessEqual => {
-            match ls {
-                Type::Integer => {
-                    match rs {
-                        Type::Integer => return Type::boolean,
-                        _ => panic!("Incorrect types: typechecker"),
-                    };
-                },
-                _ => panic!("Incorrect types: typechecker"),
-
-            };
+            return Type::boolean;
         },
         op::greatEqual => {
-            match ls {
-                Type::Integer => {
-                    match rs {
-                        Type::Integer => return Type::boolean,
-                        _ => panic!("Incorrect types: typechecker"),
-                    };
-                },
-                _ => panic!("Incorrect types: typechecker"),
-
-            };
+            return Type::boolean;
         },
         _ => panic!("Incorrect operand : typechecker"),
     }; 
@@ -521,7 +476,7 @@ fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call
         function_arguments_call::arg_call_list(lfac, rfac) => {
             let (varl, far) = match ve.clone() {
                 function_arguments::arg_list(le,ri) => {(le,ri)},
-                _ => panic!("Too many inputs to func: function_a_callChecker"),
+                _ => panic!("Too many inputs to func {:?}: function_a_callChecker",na.clone()),
             };
             let fal = function_arguments::var(varl);
             let _left = function_a_callChecker(na.clone(), oldna.clone(), unbox(lfac), fal, check, varcheck, currentid);
@@ -529,7 +484,7 @@ fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call
         }
         function_arguments_call::variable(va) => {
             let functionargs = match ve {
-                function_arguments::arg_list(le,ri) => {return panic!("jada")},
+                function_arguments::arg_list(le,ri) => {return panic!("Too few inputs to func {:?}: function_a_callChecker",na.clone())},
                 function_arguments::var(v) => {v},
             };
             let (varname,vartype) = match functionargs {
@@ -538,15 +493,15 @@ fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call
                 _ => {panic!("Tried to give an assign as argument to function {:?} : function_a_callChecker",na.clone())},
             };
             let vaTy = varChecker(oldna.clone(), unbox(va), check, varcheck, currentid);
-            if vaTy != vartype {
-                panic!("Incorrect type: function_a_callChecker");
+            if vaTy.clone() != vartype.clone() {
+                panic!("Incorrect type {:?}, {:?} for func {:?}: function_a_callChecker",vaTy.clone(),vartype.clone(),na.clone());
             }
             createLocalVar(na.clone(),unbox(varname.clone()),vaTy.clone(),check,varcheck,currentid);
-            return vaTy;
+            return vaTy.clone();
         }
         function_arguments_call::bx(b) => {
             let functionargs = match ve {
-                function_arguments::arg_list(le,ri) => {return panic!("jada")},
+                function_arguments::arg_list(le,ri) => {return panic!("Too few inputs to func {:?}: function_a_callChecker",na.clone())},
                 function_arguments::var(v) => {v},
             };
             let (varname,vartype) = match functionargs {
@@ -556,14 +511,14 @@ fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call
             };
             let ty = listChecker(oldna.clone(), unbox(b), check, varcheck, currentid);
             if ty.clone() != vartype.clone() {
-                panic!("Incorrect type: function_a_callChecker");
+                panic!("Incorrect type {:?}, {:?} for func {:?}: function_a_callChecker",ty.clone(),vartype.clone(),na.clone());
             }
             createLocalVar(na.clone(),unbox(varname.clone()),ty.clone(),check,varcheck,currentid);
             return ty;
         }
         function_arguments_call::function(fu) => {
             let functionargs = match ve {
-                function_arguments::arg_list(le,ri) => {return panic!("jada")},
+                function_arguments::arg_list(le,ri) => {return panic!("Too few inputs to func {:?}: function_a_callChecker",na.clone())},
                 function_arguments::var(v) => {v},
             };
             let (varname,vartype) = match functionargs {
@@ -575,10 +530,10 @@ fn function_a_callChecker(na: String, oldna: String, fa: function_arguments_call
                 function::parameters_call(_,_) => {
                     functionChecker(na.clone(), unbox(fu.clone()), check, varcheck, currentid)
                 },
-                _ => panic!("A declare was placed in a function call: function_a_callChecker"),    
+                _ => panic!("A declare was placed in a function call {:?}: function_a_callChecker",na.clone()),    
             };
             if futy.clone() != vartype.clone() {
-                panic!("Incorrect type: function_a_callChecker");
+                panic!("Incorrect type {:?}, {:?} for func {:?}: function_a_callChecker",futy.clone(),vartype.clone(),na.clone());
             }
             createLocalVar(na.clone(),unbox(varname.clone()),futy.clone(),check,varcheck,currentid);
             return futy;
@@ -619,10 +574,10 @@ fn returnChecker(na: String, v: variable_value, check: &mut HashMap<String, hash
         variable_value::boxs(l) => {listChecker(na.clone(), unbox(l), check, varcheck, currentid)},
         variable_value::Number(n) => {Type::Integer},
         variable_value::Boolean(n) => {Type::boolean},
-        _ => {panic!("returnChecker")},
+        _ => {panic!("Incorrect type {:?}: returnChecker",na.clone())},
     };
     if rettype != realtype {
-        panic!("Type mismatch returnChecker");
+        panic!("Type mismatch {:?}, {:?} for func {:?} returnChecker",rettype.clone(),realtype.clone(),na.clone());
     };
 }
 

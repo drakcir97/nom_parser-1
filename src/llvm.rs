@@ -142,7 +142,7 @@ pub fn execute(pg: Program)  -> Result<(), Box<dyn Error>> {
             List::func(f) => {
                 match f.clone() {
                     function::parameters_def(na,ar,ty,ele) => { //When we find a define, run a "call" to that function. Specifically needed for LLVM since it relies on this to "make" the function for calling later.
-                        let fc = function::parameters_call(na,Box::new(function_arguments_call::variable(Box::new(variable::name(Box::new("test".to_string()))))));
+                        let fc = buildFunctionCall(f.clone());
                         codegen.compile_function("FirstCall".to_string(),fc);
                     },
                     _ => (),
@@ -414,7 +414,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
         //Fetch function from state, call new function_arguments_call_declare to sort out inputs to func
 
-        //self.function_arguments_call_declare(na.clone(),args,fu_st_args.clone());
+        self.function_arguments_call_declare(na.clone(),args,fu_st_args.clone());
         let result = self.compile_function_elements(na.clone(),unbox(fu_st_ele));
         return result.0;
     }
@@ -1145,6 +1145,50 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                     _ => panic!("Type not yet supported: function_arguments_call_declare"),
                 };
             },
+        }
+    }
+}
+
+fn buildFunctionCall(fu: function) -> function {
+    match fu {
+        function::parameters_def(na,ar,ty,ele) => { //When we find a define, run a "call" to that function. Specifically needed for LLVM since it relies on this to "make" the function for calling later.
+            let args = getJunkInput(unbox(ar));
+            let fc = function::parameters_call(na,Box::new(args));
+            return fc;
+        },
+        _ => panic!(),
+    }
+    
+}
+
+fn getJunkInput(fuargs: function_arguments) -> function_arguments_call {
+    match fuargs {
+        function_arguments::arg_list(va,re) => {
+            let ty = match va {
+                variable::parameters(na,ty,val) => {
+                    ty
+                }
+                _ => panic!(),
+            };
+            let junkval = match ty {
+                Type::Integer => {function_arguments_call::bx(Box::new(List::Num(0)))},
+                _ => {function_arguments_call::bx(Box::new(List::boolean(false)))},
+            };
+            let resval = getJunkInput(unbox(re));
+            return function_arguments_call::arg_call_list(Box::new(junkval),Box::new(resval));
+        },
+        function_arguments::var(va) => {
+            let ty = match va {
+                variable::parameters(na,ty,val) => {
+                    ty
+                }
+                _ => panic!(),
+            };
+            let junkval = match ty {
+                Type::Integer => {function_arguments_call::bx(Box::new(List::Num(0)))},
+                _ => {function_arguments_call::bx(Box::new(List::boolean(false)))},
+            };
+            return junkval;
         }
     }
 }
