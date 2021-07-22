@@ -111,32 +111,32 @@ fn main() {
 
     let x = parserun(
         "
-        fn main(input: i32) -> i32 {
+        fn main(minput: i32) -> i32 {
             let  tofunc:i32 = 5;
             if (funcbool(true)) {
-                return funcloop (1) + funcstate(tofunc);
+                return funcloop(1) + funcstate(tofunc);
             }
             return  0;
         }
         
-        fn  funcloop(input: i32) -> i32 {
-            while (input <4) {
-                input :=  input +1;
+        fn  funcloop(linput: i32) -> i32 {
+            while (linput <4) {
+                linput :=  linput +1;
             }
-            return  input;
+            return  linput;
         }
         
-        fn  funcstate(input: i32) -> i32 {
+        fn  funcstate(sinput: i32) -> i32 {
             let  val:i32 = 1;
-            if (val <input) {
+            if (val <sinput) {
                 return  val;
             }
-            return  input;
+            return  sinput;
         }
 
-        fn  funcbool(input: bool) -> bool {
-            let  bval: bool = false;
-            if (input  || bval) {
+        fn  funcbool(binput: bool) -> bool {
+            let  bval: bool = true;
+            if (bval == true) {
                 return  true;
             }
             return  false;

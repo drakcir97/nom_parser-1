@@ -137,12 +137,14 @@ pub fn execute(pg: Program)  -> Result<(), Box<dyn Error>> {
     //     codegen.runMainFunction(stmt.clone()); //Run main function
     // }
 
-    for stmt in iter { //Run all functions
+    for stmt in iter { //Run main
         match stmt {
             List::func(f) => {
                 match f.clone() {
                     function::parameters_def(na,ar,ty,ele) => { //When we find a define, run a "call" to that function. Specifically needed for LLVM since it relies on this to "make" the function for calling later.
                         let fc = buildFunctionCall(f.clone());
+                        println!("{:?}",f.clone());
+                        println!("{:?}",fc.clone());
                         codegen.compile_function("FirstCall".to_string(),fc);
                     },
                     _ => (),
@@ -187,6 +189,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
     //Fetches pointer for a variable name.
     fn get_var(&self, na: String) -> &PointerValue<'ctx> {
+        //println!("get var {:?}",na.clone());
         match self.var.get(&na) {
             Some(v) => return v,
             None => panic!("Not found in memory: get_var {:?}",na),
@@ -281,6 +284,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
     //Allocates a pointer for later use.
     fn allocate_pointer(&mut self, functionname: String, na: String, is_bool: bool) -> PointerValue<'ctx> {
+        //println!("allocate {:?}",na.clone());
         let builder = self.context.create_builder();
         let entry = self.fn_value().get_first_basic_block().unwrap();
         match entry.get_first_instruction() {
@@ -422,6 +426,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
     //Declares variables sent to a function through call and adds them to memeory. Handles nestled function calls.
     //Takes function args to ensure that names and order is correct when declaring variables.
     fn function_arguments_call_declare(&mut self, functionname: Box<String>, args: Box<function_arguments_call>, fuargs: Box<function_arguments>) {
+        println!("JUNK INPUT na: {:?}, call: {:?}, args: {:?}",unbox(functionname.clone()),unbox(args.clone()),unbox(fuargs.clone()));
         if unbox(functionname.clone()) == "main" { //If we are in main, declare no variables.
             return;
         }
@@ -456,7 +461,11 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         if vartype != Type::boolean {
                             panic!("Type mismatch in var: function_arguments_call_declare")
                         };
-                        let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                        // if (self.try_var(*varname.clone())) {
+                        //     println!("var {:?} found, not declared",*varname.clone());                
+                        //     return;         
+                        // }
+                        let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),true);
                         let b = self.cast_bool(b);
                         self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                         self.builder.build_store(ptr.clone(),b);
@@ -468,6 +477,10 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         if vartype != Type::Integer {
                             panic!("Type mismatch in var: function_arguments_call_declare")
                         };
+                        // if (self.try_var(*varname.clone())) {    
+                        //     println!("var {:?} found, not declared",*varname.clone());              
+                        //     return;         
+                        // }
                         let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
                         let n = self.cast_int(n);
                         self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
@@ -489,6 +502,10 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                     variable::name(n) => {(n,Type::unknown(0))},
                     _ => {panic!("Tried to give an assign as argument to function {:?} : function_arguments_call_declare",functionname.clone())},
                 };
+                if (self.try_var(*varname.clone())) {     
+                    println!("var {:?} found, not declared",*varname.clone());             
+                    return;         
+                }
                 let val = self.compile_function_call(functionname.clone(),unbox(fu));
 
                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
@@ -515,7 +532,11 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 if vartype != Type::boolean {
                                     panic!("Type mismatch in var: function_arguments_call_declare")
                                 };
-                                let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                                // if (self.try_var(*varname.clone())) {    
+                                //     println!("var {:?} found, not declared",*varname.clone());              
+                                //     return;         
+                                // }
+                                let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),true);
                                 let b = self.cast_bool(b);
                                 self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                                 self.builder.build_store(ptr.clone(),b);
@@ -527,6 +548,10 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                                 if vartype != Type::Integer {
                                     panic!("Type mismatch in var: function_arguments_call_declare")
                                 };
+                                // if (self.try_var(*varname.clone())) {   
+                                //     println!("var {:?} found, not declared",*varname.clone());               
+                                //     return;         
+                                // }
                                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
                                 let n = self.cast_int(n);
                                 self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
@@ -539,9 +564,16 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         };
                     },
                     variable::name(n) => {
-                        let vnam = unbox(n);
-                        let ptr_val = self.get_var(vnam.clone());
-                        self.builder.build_load(*ptr_val, &vnam.clone()).into_int_value();
+                        let varname = n;
+                        let ptr_val = self.get_var(unbox(varname.clone()));
+                        let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+
+                        let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+                        self.builder.build_store(ptr.clone(),val);
+
+                        let ptr_val = self.get_var(unbox(varname.clone()));
+                        self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                     },
                     _ => panic!("Type not yet supported: function_arguments_call_declare"),
                 };
@@ -1027,6 +1059,20 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
 
         //println!("function call {:?}",fname);
 
+        // let st = self.getState(unbox(funame.clone()));
+
+        // let fu_st = match st {
+        //     llvmhashstate::state(_fust,_va,fu,_i) => fu,
+        //     _ => panic!("Function not declared: compile_function")
+        // };
+
+        // //println!("Program from state: {:?}",fu_st.clone());
+
+        // let (fu_st_args,fu_st_ele) = match unbox(fu_st.clone()) {
+        //     function::parameters_def(_na,args,_ty,ele) => (args,ele),
+        //     _ => panic!("Something went wrong with declaring: compile_function")
+        // };
+
         let fu = self.module.get_function(&fname).unwrap(); //Fetch function declared in compile_function.
         let args = self.compile_function_arguments_call_declare(funame.clone(), fargs);
         
@@ -1042,6 +1088,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 
+    //Send with function_arguments to retrive argument names to send along, should make this better and the same as interpreter. R 22/7
     //Gets function_arguments_call into a vector used in compile_function_call. This vector is then given to the builder to build the call.
     fn compile_function_arguments_call_declare(&mut self, functionname: Box<String>, args: Box<function_arguments_call>) -> Vec<BasicValueEnum<'ctx>> {
         if (unbox(functionname.clone()) == "main") {
@@ -1056,6 +1103,7 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 return leftSide;
             },
             function_arguments_call::bx(bo) => {
+                let varname = Box::new("empty".to_string());
                 let unb = unbox(bo);
                 match unb {
                     List::var(v) => {
@@ -1063,35 +1111,34 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                         return self.compile_function_arguments_call_declare(functionname.clone(), newargs);
                     },
                     List::boolean(b) => {
-                        let vname = "empty".to_string();
-                        let ptr = self.allocate_pointer(*functionname.clone(),vname.clone(),true);
                         let b = self.cast_bool(b);
+                        let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),true);
+                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                         self.builder.build_store(ptr.clone(),b);
-                        self.insert_var(*functionname.clone(), vname.clone(), ptr.clone());
-                        let ptr_val = self.get_var(vname.clone());
-                        let val = self.builder.build_load(*ptr_val, &vname).into_int_value();
+
+                        let ptr_val = self.get_var(unbox(varname.clone()));
+                        let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                         let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
                         return result;
                     },
                     List::Num(n) => {
-                        let vname = "empty".to_string();
-                        let ptr = self.allocate_pointer(*functionname.clone(),vname.clone(),false);
                         let n = self.cast_int(n);
+                        let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                        self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                         self.builder.build_store(ptr.clone(),n);
-                        self.insert_var(*functionname.clone(), vname.clone(), ptr.clone());
-                        let ptr_val = self.get_var(vname.clone());
-                        let val = self.builder.build_load(*ptr_val, &vname).into_int_value();
+
+                        let ptr_val = self.get_var(unbox(varname.clone()));
+                        let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                         let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
                         return result;
                     },
                     List::Cons(a,o,b) => {
-                        let vname = "empty".to_string();
-                        let ptr = self.allocate_pointer(*functionname.clone(),vname.clone(),false);
                         let n = self.compile_cons(unbox(functionname.clone()),a,o,b);
+                        let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
                         self.builder.build_store(ptr.clone(),n);
-                        self.insert_var(*functionname.clone(), vname.clone(), ptr.clone());
-                        let ptr_val = self.get_var(vname.clone());
-                        let val = self.builder.build_load(*ptr_val, &vname).into_int_value();
+
+                        let ptr_val = self.get_var(unbox(varname.clone()));
+                        let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                         let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
                         return result;
                     },
@@ -1099,31 +1146,40 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
                 };
             },
             function_arguments_call::function(fu) => {
+                let varname = Box::new("empty".to_string());
                 let val = self.compile_function_call(functionname.clone(), unbox(fu));
+                let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+                self.builder.build_store(ptr.clone(),val);
+
+                let ptr_val = self.get_var(unbox(varname.clone()));
+                let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                 let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
                 return result;
             },
             function_arguments_call::variable(va) => {
+                let varname = Box::new("empty".to_string());
                 match unbox(va.clone()) {
                     variable::parameters(na,_ty,val) => {
                         match unbox(val) {
                             variable_value::Boolean(b) => {
-                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),true);
                                 let b = self.cast_bool(b);
+                                let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),true);
+                                self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
                                 self.builder.build_store(ptr.clone(),b);
-                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                let ptr_val = self.get_var(*na.clone());
-                                let val = self.builder.build_load(*ptr_val, &na.clone()).into_int_value();
+
+                                let ptr_val = self.get_var(unbox(varname.clone()));
+                                let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                                 let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
                                 return result;
                             },
                             variable_value::Number(n) => {
-                                let ptr = self.allocate_pointer(*functionname.clone(),*na.clone(),false);
                                 let n = self.cast_int(n);
+                                let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
                                 self.builder.build_store(ptr.clone(),n);
-                                self.insert_var(*functionname.clone(), *na.clone(), ptr.clone());
-                                let ptr_val = self.get_var(*na.clone());
-                                let val = self.builder.build_load(*ptr_val, &na.clone()).into_int_value();
+
+                                let ptr_val = self.get_var(unbox(varname.clone()));
+                                let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
                                 let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
                                 return result;
                             },
@@ -1148,6 +1204,201 @@ impl<'a, 'ctx> CodeGen<'a, 'ctx> {
         }
     }
 }
+
+//     //Send with function_arguments to retrive argument names to send along, should make this better and the same as interpreter. R 22/7
+//     //Gets function_arguments_call into a vector used in compile_function_call. This vector is then given to the builder to build the call.
+//     fn compile_function_arguments_call_declare(&mut self, functionname: Box<String>, args: Box<function_arguments_call>, fuargs: Box<function_arguments>) -> Vec<BasicValueEnum<'ctx>> {
+//         println!("REAL INPUT na: {:?}, call: {:?}, args: {:?}",unbox(functionname.clone()),unbox(args.clone()),unbox(fuargs.clone()));
+//         if (unbox(functionname.clone()) == "main") {
+//             return vec![inkwell::values::BasicValueEnum::IntValue(self.cast_int(0))];
+//         }
+//         let temp: function_arguments_call = unbox(args.clone());
+//         match temp {
+//             function_arguments_call::arg_call_list(a1,a2) => {
+//                 let (varl, far) = match unbox(fuargs) {
+//                     function_arguments::arg_list(le,ri) => {(le,ri)},
+//                     _ => return panic!("Too many inputs given to function {:?} : compile_function_arguments_call_declare",functionname.clone()),
+//                 };
+//                 let fal = Box::new(function_arguments::var(varl));
+//                 let mut leftSide = self.compile_function_arguments_call_declare(functionname.clone(),a1,fal);
+//                 let mut rightSide = self.compile_function_arguments_call_declare(functionname.clone(),a2,far);
+//                 leftSide.extend(rightSide);
+//                 return leftSide;
+//             },
+//             function_arguments_call::bx(bo) => {
+//                 let functionargs = match unbox(fuargs.clone()) {
+//                     function_arguments::arg_list(le,ri) => {return panic!("jada")},
+//                     function_arguments::var(v) => {v},
+//                 };
+//                 let (varname,vartype) = match functionargs {
+//                     variable::parameters(n,t,_v) => {(n,t)},
+//                     variable::name(n) => {(n,Type::unknown(0))},
+//                     _ => {panic!("Tried to give an assign as argument to function {:?} : compile_function_arguments_call_declare",functionname.clone())},
+//                 };
+//                 let unb = unbox(bo);
+//                 match unb {
+//                     List::var(v) => {
+//                         let newargs = Box::new(function_arguments_call::variable(Box::new(v)));
+//                         return self.compile_function_arguments_call_declare(functionname.clone(), newargs, fuargs.clone());
+//                     },
+//                     List::boolean(b) => {
+//                         let b = self.cast_bool(b);
+//                         if (self.try_var(*varname.clone())) {                
+//                             let ptr = self.get_var(*varname.clone());                        
+//                             self.builder.build_store(ptr.clone(),b);
+//                             let ptr_val = self.get_var(unbox(varname.clone()));
+//                             let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                             let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                             return result;             
+//                         }
+//                         let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),true);
+//                         self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+//                         self.builder.build_store(ptr.clone(),b);
+
+//                         let ptr_val = self.get_var(unbox(varname.clone()));
+//                         let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                         let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                         return result;
+//                     },
+//                     List::Num(n) => {
+//                         let n = self.cast_int(n);
+//                         if (self.try_var(*varname.clone())) {                
+//                             let ptr = self.get_var(*varname.clone());                        
+//                             self.builder.build_store(ptr.clone(),n);
+//                             let ptr_val = self.get_var(unbox(varname.clone()));
+//                             let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                             let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                             return result;             
+//                         }
+//                         let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+//                         self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+//                         self.builder.build_store(ptr.clone(),n);
+
+//                         let ptr_val = self.get_var(unbox(varname.clone()));
+//                         let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                         let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                         return result;
+//                     },
+//                     List::Cons(a,o,b) => {
+//                         let n = self.compile_cons(unbox(functionname.clone()),a,o,b);
+//                         if (self.try_var(*varname.clone())) {                
+//                             let ptr = self.get_var(*varname.clone());                        
+//                             self.builder.build_store(ptr.clone(),n);
+//                             let ptr_val = self.get_var(unbox(varname.clone()));
+//                             let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                             let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                             return result;             
+//                         }
+//                         let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+//                         self.builder.build_store(ptr.clone(),n);
+
+//                         let ptr_val = self.get_var(unbox(varname.clone()));
+//                         let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                         let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                         return result;
+//                     },
+//                     _ => panic!("asd"),
+//                 };
+//             },
+//             function_arguments_call::function(fu) => {
+//                 let functionargs = match unbox(fuargs.clone()) {
+//                     function_arguments::arg_list(le,ri) => {return panic!("jada")},
+//                     function_arguments::var(v) => {v},
+//                 };
+//                 let (varname,vartype) = match functionargs {
+//                     variable::parameters(n,t,_v) => {(n,t)},
+//                     variable::name(n) => {(n,Type::unknown(0))},
+//                     _ => {panic!("Tried to give an assign as argument to function {:?} : compile_function_arguments_call_declare",functionname.clone())},
+//                 };
+//                 let val = self.compile_function_call(functionname.clone(), unbox(fu));
+//                 if (self.try_var(*varname.clone())) {                
+//                     let ptr = self.get_var(*varname.clone());                        
+//                     self.builder.build_store(ptr.clone(),val);
+//                     let ptr_val = self.get_var(unbox(varname.clone()));
+//                     let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                     let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                     return result;             
+//                 }
+//                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+//                 self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+//                 self.builder.build_store(ptr.clone(),val);
+
+//                 let ptr_val = self.get_var(unbox(varname.clone()));
+//                 let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                 let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                 return result;
+//             },
+//             function_arguments_call::variable(va) => {
+//                 let functionargs = match unbox(fuargs.clone()) {
+//                     function_arguments::arg_list(le,ri) => {return panic!("jada")},
+//                     function_arguments::var(v) => {v},
+//                 };
+//                 let (varname,vartype) = match functionargs {
+//                     variable::parameters(n,t,_v) => {(n,t)},
+//                     variable::name(n) => {(n,Type::unknown(0))},
+//                     _ => {panic!("Tried to give an assign as argument to function {:?} : compile_function_arguments_call_declare",functionname.clone())},
+//                 };
+//                 match unbox(va.clone()) {
+//                     variable::parameters(na,_ty,val) => {
+//                         match unbox(val) {
+//                             variable_value::Boolean(b) => {
+//                                 let b = self.cast_bool(b);
+//                                 if (self.try_var(*varname.clone())) {                
+//                                     let ptr = self.get_var(*varname.clone());                        
+//                                     self.builder.build_store(ptr.clone(),b);
+//                                     let ptr_val = self.get_var(unbox(varname.clone()));
+//                                     let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                                     let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                                     return result;             
+//                                 }
+//                                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),true);
+//                                 self.insert_var(*functionname.clone(), *varname.clone(), ptr.clone());
+//                                 self.builder.build_store(ptr.clone(),b);
+
+//                                 let ptr_val = self.get_var(unbox(varname.clone()));
+//                                 let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                                 let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                                 return result;
+//                             },
+//                             variable_value::Number(n) => {
+//                                 let n = self.cast_int(n);
+//                                 if (self.try_var(*varname.clone())) {                
+//                                     let ptr = self.get_var(*varname.clone());                        
+//                                     self.builder.build_store(ptr.clone(),n);
+//                                     let ptr_val = self.get_var(unbox(varname.clone()));
+//                                     let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                                     let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                                     return result;             
+//                                 }
+//                                 let ptr = self.allocate_pointer(*functionname.clone(),*varname.clone(),false);
+//                                 self.builder.build_store(ptr.clone(),n);
+
+//                                 let ptr_val = self.get_var(unbox(varname.clone()));
+//                                 let val = self.builder.build_load(*ptr_val, &(unbox(varname.clone()))).into_int_value();
+//                                 let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                                 return result;
+//                             },
+//                             _ => panic!("temp"), //Might have to include more cases for variable_value here if needed.
+//                         };
+//                     },
+//                     variable::name(n) => {
+//                         let vnam = unbox(n);
+//                         let ptr = self.get_var(vnam.clone());
+//                         let val = self.builder.build_load(*ptr,&vnam.clone()).into_int_value();
+
+//                         //Here the variable should be added to the current functions local variables. 2021-04-25
+//                         self.insert_var(*functionname.clone(), vnam.clone(), ptr.clone());
+//                         let ptr_val = self.get_var(vnam.clone());
+//                         let val = self.builder.build_load(*ptr_val, &vnam.clone()).into_int_value();
+//                         let result: Vec<BasicValueEnum> = vec![inkwell::values::BasicValueEnum::IntValue(val)];
+//                         return result;
+//                     },
+//                     _ => panic!("Type not yet supported: function_arguments_call_declare"),
+//                 };
+//             },
+//         }
+//     }
+// }
 
 fn buildFunctionCall(fu: function) -> function {
     match fu {
@@ -1192,6 +1443,7 @@ fn getJunkInput(fuargs: function_arguments) -> function_arguments_call {
         }
     }
 }
+
 
 
 fn main() {}

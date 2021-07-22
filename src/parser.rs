@@ -46,7 +46,7 @@ pub fn program_parser(input: &str)-> Program{
 }
 
 fn variable_parser(input: &str) -> IResult<&str, expr> {
-    println!("enters variable parser");
+    //println!("enters variable parser");
     let (input, varname) = name_parser(input)?; 
     let (pibval, vartype) = variable_type_parser(input)?;
 
@@ -68,7 +68,7 @@ fn variable_parser(input: &str) -> IResult<&str, expr> {
         expr::list(v) => v,
         _ => panic!(),
     };
-    println!("variabel parser after pib: {:?}", (input, &x));
+    // println!("variabel parser after pib: {:?}", (input, &x));
     let box_4_varname = Box::new(String::from(varname));
     let param = parameters(box_4_varname, vartype, Box::new(boxs(Box::new(x))));
 
@@ -82,7 +82,7 @@ fn assign_parser(input: &str) -> IResult<&str, expr> {
 
     let (input, expresion) = variable_expression_parser(input)?;
 
-    println!("{:?}", (input, expresion));
+    // println!("{:?}", (input, expresion));
     
     let (_, pibRes) = put_in_box(expresion)?;
 
@@ -143,7 +143,7 @@ fn variable_expression_parser(input: &str) -> IResult<&str, &str> {
     let (input, pibval) =
         preceded(multispace0, delimited(tag(":="), take_until(";"), tag(";")))(input)?;
 
-    println!("komm ihåg att ta bort denna printsats{:?}", (input, pibval));
+    // println!("komm ihåg att ta bort denna printsats{:?}", (input, pibval));
     Ok((input, pibval))
 }
 
@@ -166,7 +166,7 @@ fn tag_semi_col(input: &str) -> IResult<&str, &str> {
 // Parses everything right of a "=" so in "x:i32 = 3+x+(y(1)+8)" it parses the "3+x+(y(1)+8)" part
 pub fn put_in_box(input: &str) -> IResult<&str, expr> {
 
-    println!("niput to put in box {:?}", input);
+    // println!("niput to put in box {:?}", input);
     // if input == ""{
         // return Ok(("", ))
     // }
@@ -176,7 +176,7 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
         },
         Err(q) => {
             let (restvalue, value) = finalparser(input);
-            println!("value: {:?}", value);
+            // println!("value: {:?}", value);
             let test = match parser2(value) {
                 Ok(v) => {
                     integer_cons_parser(v, value, restvalue)
@@ -190,11 +190,11 @@ pub fn put_in_box(input: &str) -> IResult<&str, expr> {
                     }
                 },
             };
-            println!("exit interger_cons_parser in pib {:?}", test);
+            // println!("exit interger_cons_parser in pib {:?}", test);
             return test;
         }
     };
-    println!("resu value {:?}", resu);
+    // println!("resu value {:?}", resu);
     return resu;
 }
 
@@ -228,7 +228,7 @@ fn cons_paran_parser(mut v: (&str, Vec<expr>) ) -> IResult<&str, expr> {
 }
 
 fn integer_cons_parser<'v>(v:(&str, &str), value: &'v str, restvalue: &'v str) -> IResult<&'v str, expr> {
-    println!("integer cons parser input: {:?}", (value, restvalue));
+    // println!("integer cons parser input: {:?}", (value, restvalue));
     let value: i32 = value.parse().unwrap();
     let list_var = Num(value);
     // checks if rest value = "" or ;
@@ -267,14 +267,14 @@ fn integer_cons_parser<'v>(v:(&str, &str), value: &'v str, restvalue: &'v str) -
 }
 
 fn function_call_parser<'v>(v: (&'v str, Vec<expr>), value: &'v str) -> IResult<&'v str, expr> {
-    println!("entered function call parser with input: {:?}", (&v , &value));
+    // println!("entered function call parser with input: {:?}", (&v , &value));
     let value = String::from(value);
     //let func_box_var = function_call_parentheses_parser_final(v.1);
     let func_box_var = func_var(v.1);
     let funcpar = function::parameters_call(Box::new(value), func_box_var);
     let list_var = func(funcpar);
-    println!("list_var: {:?}", list_var);
-    println!("v.0: {:?}", &v.0);
+    // println!("list_var: {:?}", list_var);
+    // println!("v.0: {:?}", &v.0);
     let nextchar = v.0.chars().next().unwrap();
     let if_var = if nextchar == ';'  {
         let (restvalue,_) = tag(";")(v.0)?;
@@ -410,10 +410,10 @@ fn get_parentheses_content(input: &str) -> IResult<&str, &str> {
 //Parses all function parameters, that can be supplied in a function call.
 
 fn function_call_parentheses_parser(input: &str) -> IResult<&str, Vec<&str>> {
-    println!("input to func_call_paran: {:?}", &input);
+    // println!("input to func_call_paran: {:?}", &input);
     let z: u8 = 0;
     let x: IResult<&str, Vec<&str>> = many0(delimited(take(z), take_until(","), tag(",")))(input);
-    println!("x: {:?}",&x);
+    // println!("x: {:?}",&x);
     x
 }
 
@@ -439,7 +439,7 @@ fn function_def_parentheses_parser_final(input: &str) -> Box<function_arguments>
 
 //parses the arguments to a funtion call so in "function(var, func(3)+var2, 5)"" it parses the expresions "var", "func(3)+var2" and "5"  
 fn func_var(mut input: Vec<expr>) -> Box<function_arguments_call> {
-    println!("with input: {:?}",(&input));
+    // println!("with input: {:?}",(&input));
     if input.len() == 1 {
         let x = input.pop().unwrap();         
 
@@ -520,7 +520,7 @@ pub fn get_curl_brack_body(input: &str) -> IResult<&str, Vec<expr>> {
 }
 
 pub fn get_reg_brack_cont(input:&str)->IResult<&str, Vec<expr>>{
-    println!("input to get_reg_brack: {:?}", input);
+    // println!("input to get_reg_brack: {:?}", input);
     let output =  delimited(
         preceded(multispace0, tag("(")),
         many0(delimited(
@@ -537,7 +537,7 @@ pub fn get_reg_brack_cont(input:&str)->IResult<&str, Vec<expr>>{
         //preceded(multispace0, tag_semi_col), // ändrad idag july 20 vaccinations dag!! :)
         preceded(multispace0, tag(")")),
     )(input);
-    println!("output from get_reg_brack: {:?}",output);
+    // println!("output from get_reg_brack: {:?}",output);
     output
 }
 
@@ -562,7 +562,7 @@ fn get_parentheses_body(input: &str) -> IResult<&str, expr> {
 
 // parses the return type of a newly defined function
 fn return_parser(input: &str) -> IResult<&str, Type> {
-    println!("entered return parser");
+    // println!("entered return parser");
     preceded(
         multispace0,
         preceded(
@@ -664,7 +664,7 @@ fn function_parser(input: &str) -> IResult<&str, List> {
 
 //Parses the condition, and the body of if statements and while loops and adds them to the tree
 pub fn if_parser(input: &str) -> IResult<&str, expr> {
-    println!("entered if_parser");
+    // println!("entered if_parser");
     let (input, _) = preceded(multispace0, tag("if"))(input)?;
 
     //let (input, paran_cont) = get_parentheses_content(input)?;
@@ -685,7 +685,7 @@ pub fn if_parser(input: &str) -> IResult<&str, expr> {
 
 //parses while loops
 fn while_parser(input: &str) -> IResult<&str, expr> {
-    println!(" entered while parser");
+    // println!(" entered while parser");
     let (input, _) = preceded(multispace0, tag("while"))(input)?;
 
     let (input, paran_cont) = get_parentheses_content(input)?;
