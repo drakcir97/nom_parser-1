@@ -1,102 +1,13 @@
-extern crate nom;
-use nom::{
-    branch::alt,
-    bytes::complete::{tag, take, take_till, take_until, take_while1, take_while_m_n},
-    //sequence::tuple,
-    character::complete::{char, digit1, multispace0},
-    character::is_alphanumeric,
-    combinator::map,
-    combinator::map_res,
-    multi::many0,
-    // complete::take,
-    sequence::{delimited, preceded, terminated, tuple},
-    //take_until,
-    //alt,
-    switch,
-    IResult,
-};
-use std::process;
-use std::result;
-use std::str;
+#![allow(non_snake_case)]
+#![allow(unused_imports)]
+#![allow(unreachable_code)]
+#![allow(non_camel_case)]
 
-#[derive(Debug, PartialEq, Eq)]
-enum List {
-    Cons(Box<List>, op, Box<List>),
-    Num(i32),
-    func(function),
-    var(variable),
-    paran(Box<List>),
-}
-use crate::List::{func, var, Cons, Num};
-
-#[derive(Debug, PartialEq, Eq)]
-enum op {
-    add,
-    sub,
-    div,
-    mult,
-    res,
-    wrong,
-    unknown(usize),
-    // &&,
-    //||,
-}
-use crate::op::{add, div, mult, res, sub, wrong};
-
-#[derive(Debug, PartialEq, Eq)]
-enum variable_value {
-    variable,
-    boxs(Box<List>),
-    Number(i32),
-    Boolean(Box<String>),
-}
-use crate::variable_value::{boxs, Boolean, Number};
-
-#[derive(Debug, PartialEq, Eq)]
-enum variable {
-    parameters(Box<String>, Type, Box<variable_value>),
-    name(Box<String>),
-}
-use crate::variable::{name, parameters};
-
-#[derive(Debug, PartialEq, Eq)]
-enum Type {
-    Integer,
-    boolean,
-    unknown(i32),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum function {
-    parameters_def(
-        Box<String>,
-        Box<function_arguments>,
-        Type,
-        Box<function_elements>,
-    ),
-    parameters_call(Box<String>, Box<function_arguments_call>),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum function_arguments {
-    arg_list(variable, Box<function_arguments>),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum function_arguments_call {
-    arg_call_list(Box<function_arguments_call>, Box<function_arguments_call>),
-    variable,
-    bx(Box<List>),
-    function,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum function_elements {
-    ele_list(Box<function_elements>, Box<function_elements>),
-    variable,
-    List,
-    function,
-}
+mod enums;
+mod interpreter;
+mod parser;
+mod typechecker;
+mod llvm;
 
 fn main() {
     //let k = put_in_box("-3");
@@ -105,293 +16,155 @@ fn main() {
 
     //    println!("{:?}", varib);
     // let z: u8 = 0;
-    //
+    //2+3
     // let varib = "ab,ab,ab,ef";
     // let x: IResult<&str,Vec<&str>> = many0(
     // delimited(
     // take(z),
     // take_until(","),
     // tag(","),
-    // )
+    // )val.pop()
     // )(varib);
+    //
+    // let x = parser::put_in_box("1+(2-(3/9)+2);");
+    //
+    // let x = parser::put_in_box("1;");
 
-    // let x = put_in_box("1+2+func(1+2)+3+a");
-    let input = "(a+b)";
-    let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
+    // let x = put_in_box("let x: i32 = 6+7;");
 
-    //let x = get_funk_body(
-    //       "(
-    //  let x = 5;
-    // while jada;
-    //a=7+6(2*7);
-    //return a;)....slut)",
+    // let x = parser::get_reg_brack_cont("(asd(test(1))+4);");
+    //let x = parser::get_reg_brack_cont("(1-asd(5)-1;)");
+    //let x = parser::get_curl_brack_body("{let testV:i32 = 1-asd(5)-1; }");
+
+    //let x = variable_parser("let x: i32 = 6+7;");
+    //let input = "(a+b)";
+    //let x: IResult<&str, &str> = delimited(tag("("), take_until(")"), tag(")"))(input);
+
+    // let x = function_parser(
+    //  "fn getfunkbody(input: i32) -> i32{
+    //   let z:i32 = 9;
+    //   if (1>2) {
+    //   let x: i32 = 4;
+    //   let q: i32 = x+2;
+    //   };
+    //  }"
+    // );
+    //
+    // let x = parserun(
+    // "
+    //     fn main(input: i32) -> i32{
+    //         let testInp:i32 = 2;
+    //         let testV:i32 = (1-asd(testInp+1))-1;
+    //         return testV;
+    //     }
+
+    //     fn asd(input: i32)->i32{
+    //         let test:i32 = 1;
+    //         while (test < 5) {
+    //             test := test+1;
+    //         }
+    //         return test;
+    //     }
+    // "
+    // );
+    //
+
+    // fn main(input: i32) -> i32{
+    //     let testInp:i32 = 2;
+    //     let testV:i32 = (1-asd(testInp))-1;
+    //     return testInp;
+    // }
+    // fn asd(input: i32)->i32{
+    //     return input;
+    // }
+
+    //
+    // let x = parser::if_parser("if (1<2){
+    //     return 0+1;
+    // }");
+    // let y: i32 =18*7;
+    // if (2>7){
+    // let test: i32 = 9;
+    // };
+    // };
+    // ");
+    //let x:i32 = 1*(2+3)/5
+
+    // let x = get_curl_brack_body(
+    // "{
+    // let x = 5;
+    // let k = 9;
+    // if true {
+    // if jdad {
+    // let banna = false;
+    // let apple = true;
+    // };
+    // let i = 89;
+    // let ifthing = 7;
+    // };
+    // }",
     // );
 
-    // let x: IResult<&str, &str> = take(z)(varib);
+    // let x = get_curl_brack_body("{
+    // let x = 5;
+    // let b = 3+6+7;
+
+    let x = parserun(
+        "
+        fn main(minput: i32) -> i32 {
+            let  tofunc:i32 = 5;
+            if (funcbool(true)) {
+                return funcloop(1) + funcstate(tofunc);
+            }
+            return  0;
+        }
+        
+        fn  funcloop(linput: i32) -> i32 {
+            while (linput <4) {
+                linput :=  linput +1;
+            }
+            return  linput;
+        }
+        
+        fn  funcstate(sinput: i32) -> i32 {
+            let  val:i32 = 1;
+            if (val <sinput) {
+                return  val;
+            }
+            return  sinput;
+        }
+
+        fn  funcbool(binput: bool) -> bool {
+            let  bval: bool = true;
+            if (bval == true) {
+                return  true;
+            }
+            return  false;
+        }"
+    );
+
     println!("{:?}", x);
 }
 
-fn variable_parser(input: &str) -> Box<variable> {
-    let (input, varname) = match name_parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", "error"),
-    };
+fn parserun(st: &str) {
+    println!("---------- PARSER ----------\n");
+    let parsed = parser::program_parser(st);
+    println!("parsed: {:?} \n", parsed);
 
-    let (input, vartype) = match variable_type_parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", Type::unknown(0)),
-    };
+    println!("---------- TYPECHECKER ----------\n");
 
-    let (input, pibval) = match variable_expression_parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", "error"),
-    };
+    typechecker::typechecker(parsed.clone());
+    
+    println!("---------- INTERPRETER ----------\n");
 
-    if vartype == Type::boolean {
-        let box_4_varname = Box::new(String::from(varname));
-        let box_4_value = Box::new(String::from(pibval));
-        let param = parameters(box_4_varname, vartype, Box::new(Boolean(box_4_value)));
+    let result = interpreter::execute(parsed.clone());
 
-        return Box::new(param);
+    let iter = result.iter();
+    for line in iter {
+        println!("Program state \n\n {:?}", line);
     }
 
-    let x = put_in_box(pibval);
-    let box_4_varname = Box::new(String::from(varname));
-    let param = parameters(box_4_varname, vartype, Box::new(boxs(x)));
+    println!("---------- LLVM ----------\n");
 
-    return Box::new(param);
-}
-
-fn name_parser(input: &str) -> IResult<&str, &str> {
-    let (input, varname) = preceded(
-        multispace0,
-        preceded(
-            alt((tag("let"), tag("fn"))),
-            preceded(multispace0, take_while1(char::is_alphanumeric)),
-        ),
-    )(input)?;
-
-    Ok((input, varname))
-}
-
-fn variable_type_parser(input: &str) -> IResult<&str, Type> {
-    let (input, vartype) = preceded(
-        tag(":"),
-        preceded(
-            multispace0,
-            alt((
-                map(tag("i32"), |_| Type::Integer),
-                map(tag("bool"), |_| Type::boolean),
-            )),
-        ),
-    )(input)?;
-    Ok((input, vartype))
-}
-
-fn variable_expression_parser(input: &str) -> IResult<&str, &str> {
-    let (input, pibval) =
-        preceded(multispace0, delimited(tag("="), take_until(";"), tag(";")))(input)?;
-
-    //let x = put_in_box(pibval);
-    //let box_4_varname = Box::new(varname)
-    //let param = parameters(box_4_varname,vartype,x)
-    //Box::new(param)
-
-    Ok((input, pibval))
-}
-
-fn parser2(input: &str) -> IResult<&str, &str> {
-    digit1(input)
-}
-
-fn put_in_box(input: &str) -> Box<List> {
-    let (restvalue, value) = finalparser(input);
-    //let value = value.as_bytes();
-    let test: Box<List> = match parser2(value) {
-        Ok(v) => {
-            let value: i32 = value.parse().unwrap();
-            let box_var = Box::new(Num(value));
-            if restvalue == "" {
-                return box_var;
-            }
-            let (restvalue, operator) = operator(restvalue);
-
-            let list = Cons(Box::new(Num(value)), operator, put_in_box(restvalue));
-            return Box::new(list);
-        }
-        Err(q) => match get_parentheses_content(restvalue) {
-            Ok(v) => {
-                let value = String::from(value);
-                let func_box_var = function_call_parentheses_parser_final(v.1);
-                let funcpar = function::parameters_call(Box::new(value), func_box_var);
-                let box_var = Box::new(func(funcpar));
-
-                if v.0 == "" {
-                    return box_var;
-                }
-                let (restvalue, operator) = operator(v.0);
-                let list = Cons(box_var, operator, put_in_box(restvalue));
-                return Box::new(list);
-            }
-            Err(q) => {
-                let value = String::from(value);
-                let box_var = Box::new(var(variable::name(Box::new(value))));
-
-                if restvalue == "" {
-                    return box_var;
-                }
-                let (restvalue, operator) = operator(restvalue);
-
-                let list = Cons(box_var, operator, put_in_box(restvalue));
-
-                return Box::new(list);
-            }
-        },
-    };
-    test
-}
-
-fn parser(input: &str) -> IResult<&str, &str> {
-    preceded(
-        multispace0,
-        alt((
-            digit1,
-            take_while1(char::is_alphanumeric),
-            //get_parentheses_content,
-        )),
-    )(input)
-}
-
-fn finalparser(input: &str) -> (&str, &str) {
-    match parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", "error"),
-    }
-}
-
-use std;
-fn operator(input: &str) -> (&str, op) {
-    let value: IResult<&str, op> = preceded(
-        multispace0,
-        alt((
-            map(tag("+"), |_| op::add),
-            map(tag("*"), |_| op::mult),
-            map(tag("/"), |_| op::div),
-            map(tag("-"), |_| op::sub),
-            map(tag("%"), |_| op::res),
-            //map(take_till(is_alphanumeric), |r: &[str]| op::unknown(r.len())),
-        )),
-    )(input);
-
-    match value {
-        Ok(v) => v,
-        Err(q) => ("error", op::unknown(0)),
-    }
-    //{
-    //      Ok(v) => v,
-    //      Err(q) => ("error", "error")
-    // }
-
-    // if value == "+"{
-    //     return (reststring,op::add)
-    // }else if value == "*"{
-    //     return (reststring, op::mult)
-    // }else{
-    //     process::exit(1);
-    // }
-}
-
-fn get_parentheses_content(input: &str) -> IResult<&str, &str> {
-    alt((
-        delimited(tag("("), take_until(")"), tag(")")),
-        delimited(tag("{"), take_until("}"), tag("}")),
-    ))(input)
-}
-
-fn function_call_parentheses_parser(input: &str) -> IResult<&str, Vec<&str>> {
-    let z: u8 = 0;
-    let x: IResult<&str, Vec<&str>> = many0(delimited(take(z), take_until(","), tag(",")))(input);
-
-    x
-}
-
-fn function_call_parentheses_parser_final(input: &str) -> Box<function_arguments_call> {
-    let (reststring, values) = match function_call_parentheses_parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", vec!["error"]),
-    };
-
-    func_var(values, reststring)
-}
-
-fn func_var(mut input: Vec<&str>, reststring: &str) -> Box<function_arguments_call> {
-    if input.len() == 0 {
-        //return Box::new(function_arguments_call::bx(put_in_box(input.pop().unwrap())))
-        return Box::new(function_arguments_call::bx(put_in_box(reststring)));
-    }
-    let x = put_in_box(input.pop().unwrap());
-    let list = function_arguments_call::arg_call_list(
-        Box::new(function_arguments_call::bx(x)),
-        func_var(input, reststring),
-    );
-    return Box::new(list);
-}
-
-fn get_funk_body(input: &str) -> IResult<&str, Vec<&str>> {
-    delimited(
-        preceded(multispace0, tag("(")),
-        many0(preceded(multispace0, terminated(take_until(";"), tag(";")))),
-        tag(")"),
-    )(input)
-}
-
-fn return_parser(input: &str) -> IResult<&str, Type> {
-    preceded(
-        multispace0,
-        preceded(
-            tag("->"),
-            preceded(
-                multispace0,
-                alt((
-                    map(tag("i32"), |_| Type::Integer),
-                    map(tag("bool"), |_| Type::boolean),
-                )),
-            ),
-        ),
-    )(input)
-}
-
-fn function_body_elements(mut input_Vec: Vec<&str>) {
-    // -> Box<function_elements>{
-    let input = input_Vec.pop();
-    let (rest, value) =
-        match preceded(multispace0, alt((tag("let"), take_while1(is_alphanumeric))))(input) {
-            ok(v) => v,
-            Err(q) => q,
-        };
-}
-
-fn function_parser(input: &str) {
-    // -> IResult<&str,&str>{
-    let (input, varname) = match name_parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", "error"),
-    };
-
-    let (_, paren_cont) = match get_parentheses_content(input) {
-        Ok(v) => v,
-        Err(q) => ("error", "error"),
-    };
-
-    let (input2, return_type) = match return_parser(input) {
-        Ok(v) => v,
-        Err(q) => ("error", Type::unknown(0)),
-    };
-
-    if return_type == Type::unknown(0) {
-        let (input, curl_para_cont) = match get_funk_body(input) {
-            Ok(v) => v,
-            Err(q) => ("error", "error"),
-        };
-    }
+    llvm::execute(parsed.clone());
 }
